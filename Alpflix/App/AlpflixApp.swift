@@ -63,13 +63,20 @@ struct SourcesRoute: Hashable {
 }
 
 struct RootView: View {
+    /// Simülatör denetimi açılışta bir sekmeyle başlatabilir ("-alpflixTab 2").
+    @State private var selection: Int = {
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-alpflixTab"), i + 1 < args.count, let tab = Int(args[i + 1]) { return tab }
+        return 0
+    }()
+
     var body: some View {
-        TabView {
-            tab(HomeView(), L.tabHome, "house")
-            tab(DiscoverView(), L.tabDiscover, "safari")
-            tab(SearchView(), L.tabSearch, "magnifyingglass")
-            tab(LibraryView(), L.tabLibrary, "rectangle.stack")
-            tab(SettingsView(), L.tabSettings, "gearshape")
+        TabView(selection: $selection) {
+            tab(HomeView(), L.tabHome, "house").tag(0)
+            tab(DiscoverView(), L.tabDiscover, "safari").tag(1)
+            tab(SearchView(), L.tabSearch, "magnifyingglass").tag(2)
+            tab(LibraryView(), L.tabLibrary, "rectangle.stack").tag(3)
+            tab(SettingsView(), L.tabSettings, "gearshape").tag(4)
         }
     }
 

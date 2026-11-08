@@ -67,15 +67,28 @@ jobs:
           APP=$(find build/sim -name "Alpflix.app" -path "*iphonesimulator*" | head -1)
           xcrun simctl install "$DEVICE" "$APP"
           mkdir -p shots
-          PID=$(xcrun simctl launch "$DEVICE" com.alpflix.ios | awk '{print $NF}')
-          sleep 12
-          xcrun simctl io "$DEVICE" screenshot shots/01-acilis.png
-          if ! ps -p "$PID" > /dev/null; then
-            echo "::error::Uygulama açılışta kapandı (çöktü)."
-            find ~/Library/Logs/DiagnosticReports -name "Alpflix*" -exec cat {} \; | head -120
-            exit 1
-          fi
-          echo "Uygulama açık (pid $PID)."
+          for TAB in 0 1 2 3 4; do
+            xcrun simctl terminate "$DEVICE" com.alpflix.ios 2>/dev/null || true
+            PID=$(xcrun simctl launch "$DEVICE" com.alpflix.ios -alpflixTab $TAB | awk '{print $NF}')
+            sleep 10
+            xcrun simctl io "$DEVICE" screenshot "shots/sekme-$TAB.png"
+            if ! ps -p "$PID" > /dev/null; then
+              echo "::error::Uygulama sekme $TAB açılışında kapandı (çöktü)."
+              find ~/Library/Logs/DiagnosticReports -name "Alpflix*" -exec cat {} \; | head -120
+              exit 1
+            fi
+            echo "Sekme $TAB açık (pid $PID)."
+          done
+
+      # Görüntüler küçültülüp günlüğe yazılır (yük dosyaları her yerden indirilemiyor).
+      - name: Ekran görüntülerini günlüğe yaz
+        run: |
+          for f in shots/*.png; do
+            sips -Z 900 -s format jpeg -s formatOptions 60 "$f" --out "${f%.png}.jpg" > /dev/null
+            echo "=====BEGIN $(basename "${f%.png}.jpg")====="
+            base64 -i "${f%.png}.jpg" | fold -w 4000
+            echo "=====END====="
+          done
 
       - uses: actions/upload-artifact@v4
         if: always()
