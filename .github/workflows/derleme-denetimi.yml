@@ -36,3 +36,51 @@ jobs:
       - name: Hataları özetle
         if: failure()
         run: grep -E "^/.*error:" build.log | sed 's|^.*/Alpflix/|Alpflix/|' | sort -u | head -80 || true
+
+  # Simülatörde açılış denetimi: uygulama açılıyor mu, çökmüyor mu; ekran görüntüleri yükte.
+  simulator:
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Proje ve CocoaPods
+        run: |
+          brew install xcodegen || true
+          xcodegen generate
+          pod install --repo-update
+
+      - name: Simülatör için derle
+        run: |
+          set -o pipefail
+          xcodebuild -workspace Alpflix.xcworkspace -scheme Alpflix -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build/sim \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee sim.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" sim.log
+
+      - name: Aç ve ekran görüntüsü al
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          APP=$(find build/sim -name "Alpflix.app" -path "*iphonesimulator*" | head -1)
+          xcrun simctl install "$DEVICE" "$APP"
+          mkdir -p shots
+          PID=$(xcrun simctl launch "$DEVICE" com.alpflix.ios | awk '{print $NF}')
+          sleep 12
+          xcrun simctl io "$DEVICE" screenshot shots/01-acilis.png
+          if ! ps -p "$PID" > /dev/null; then
+            echo "::error::Uygulama açılışta kapandı (çöktü)."
+            find ~/Library/Logs/DiagnosticReports -name "Alpflix*" -exec cat {} \; | head -120
+            exit 1
+          fi
+          echo "Uygulama açık (pid $PID)."
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-ekranlari
+          path: shots/
+          if-no-files-found: ignore
+
