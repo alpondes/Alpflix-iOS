@@ -63,15 +63,64 @@ actor TMDBClient {
         return result.results.compactMap { $0.ref() }
     }
 
+    /// Kimliksiz kaynaklar (Netflix listesi) için adla eşleme: önce birebir ad, yoksa ilk sonuç.
+    func match(_ type: MediaType, name: String) async throws -> MediaRef? {
+        let result: TMDBPage<TMDBItem> = try await get("search/\(type.rawValue)", ["query": name, "include_adult": "false"])
+        let target = name.lowercased().filter { $0.isLetter || $0.isNumber }
+        let refs = result.results.prefix(8)
+        let exact = refs.first { item in
+            [item.title, item.name].compactMap { $0 }.contains { $0.lowercased().filter { $0.isLetter || $0.isNumber } == target }
+        }
+        return (exact ?? refs.first)?.ref(fallback: type)
+    }
+
+    /// Bir platforma son gelen yapımlar (Türkiye, abonelik): çıkış tarihine göre, film ve dizi karışık.
+    func providerRecent(_ providerId: Int) async throws -> [MediaRef] {
+        let today = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
+        async let movies: TMDBPage<TMDBItem> = get("discover/movie", [
+            "with_watch_providers": "\(providerId)", "watch_region": region, "with_watch_monetization_types": "flatrate",
+            "sort_by": "primary_release_date.desc", "primary_release_date.lte": today,
+        ])
+        async let series: TMDBPage<TMDBItem> = get("discover/tv", [
+            "with_watch_providers": "\(providerId)", "watch_region": region, "with_watch_monetization_types": "flatrate",
+            "sort_by": "first_air_date.desc", "first_air_date.lte": today,
+        ])
+        let m = try await movies.results.compactMap { $0.ref(fallback: .movie) }
+        let t = try await series.results.compactMap { $0.ref(fallback: .tv) }
+        var merged: [MediaRef] = []
+        for i in 0..<max(m.count, t.count) {
+            if i < m.count { merged.append(m[i]) }
+            if i < t.count { merged.append(t[i]) }
+        }
+        return merged.filter { $0.posterPath != nil }
+    }
+
+    /// Türkiye'deki abonelik platformları (dizi listesi, TMDB önceliğiyle).
+    func regionProviders() async throws -> [TMDBProvider] {
+        struct Response: Decodable { let results: [TMDBProvider] }
+        let result: Response = try await get("watch/providers/tv", ["watch_region": region])
+        return result.results
+    }
+
     // MARK: Ayrıntı
 
     func detail(_ type: MediaType, _ id: Int, fresh: Bool = false) async throws -> TMDBDetail {
         let key = "\(type.rawValue):\(id)"
         if !fresh, let cached = detailCache[key] { return cached }
-        let append = type == .movie ? "credits,external_ids,recommendations" : "credits,external_ids,recommendations"
-        let detail: TMDBDetail = try await get("\(type.rawValue)/\(id)", ["append_to_response": append])
+        let detail: TMDBDetail = try await get(
+            "\(type.rawValue)/\(id)",
+            ["append_to_response": "credits,external_ids,recommendations,videos", "include_video_language": "tr,en,null"]
+        )
         detailCache[key] = detail
         return detail
+    }
+
+    /// Türkiye'de abonelikle / ücretsiz izlenebildiği platformlar (veri JustWatch'tan).
+    func providers(_ type: MediaType, _ id: Int) async throws -> [TMDBProvider] {
+        let result: TMDBProvidersResponse = try await get("\(type.rawValue)/\(id)/watch/providers")
+        guard let tr = result.results[region] else { return [] }
+        var seen = Set<Int>()
+        return ((tr.flatrate ?? []) + (tr.free ?? []) + (tr.ads ?? [])).filter { seen.insert($0.providerId).inserted }
     }
 
     func season(_ tvId: Int, _ number: Int) async throws -> TMDBSeason {
@@ -86,4 +135,5 @@ actor TMDBClient {
 enum SettingsKeys {
     static let tmdbToken = "tmdb_token"
     static let subtitleLanguage = "subtitle_language"
+    static let autoPlayNext = "auto_play_next"
 }

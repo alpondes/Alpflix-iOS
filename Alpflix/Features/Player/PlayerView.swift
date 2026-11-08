@@ -45,6 +45,43 @@ struct PlayerView: View {
                     .padding(40)
             }
             if controls { overlay }
+            // Giriş/özet/jenerik atlama: denetimler gizliyken de görünür.
+            if let skip = model.skip, model.countdown == nil {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button { model.skipSegment() } label: {
+                            Label(skip.kind.label, systemImage: "forward.fill")
+                                .font(Theme.body(16).weight(.semibold))
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 11)
+                                .background(Theme.surface.opacity(0.92), in: Capsule())
+                                .foregroundStyle(Theme.text)
+                        }
+                    }
+                }
+                .padding(.horizontal, 28)
+                .padding(.bottom, controls ? 96 : 32)
+            }
+            if let seconds = model.countdown {
+                VStack(spacing: 14) {
+                    Text(L.nextIn(seconds)).font(Theme.title(20)).foregroundStyle(Theme.text)
+                    HStack(spacing: 12) {
+                        Button(L.playerNext) {
+                            model.cancelCountdown()
+                            Task { await model.playNext() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Theme.accent)
+                        Button(L.cancel) { model.cancelCountdown() }
+                            .buttonStyle(.bordered)
+                            .tint(Theme.text)
+                    }
+                }
+                .padding(24)
+                .background(Theme.surface.opacity(0.94), in: RoundedRectangle(cornerRadius: 16))
+            }
         }
         .statusBarHidden(!controls)
         .persistentSystemOverlays(.hidden)

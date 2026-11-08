@@ -142,6 +142,7 @@ struct TMDBDetail: Decodable {
     let nextEpisodeToAir: TMDBEpisode?
     let recommendations: TMDBPage<TMDBItem>?
     let status: String?
+    let videos: TMDBVideos?
 
     var displayTitle: String { title ?? name ?? "" }
     var imdb: String? { imdbId ?? externalIds?.imdbId }
@@ -156,11 +157,57 @@ struct TMDBDetail: Decodable {
     }
 }
 
+struct TMDBVideos: Decodable {
+    let results: [TMDBVideo]
+}
+
+struct TMDBVideo: Decodable, Hashable {
+    let key: String
+    let site: String?
+    let type: String?
+    let iso6391: String?
+    let official: Bool?
+}
+
+extension TMDBDetail {
+    /// Fragman: YouTube, önce Türkçe sonra İngilizce, resmî olanlar önce.
+    var trailerURL: URL? {
+        let all = (videos?.results ?? []).filter { $0.site == "YouTube" && ($0.type == "Trailer" || $0.type == "Teaser") }
+        let ranked = all.sorted { a, b in
+            func score(_ v: TMDBVideo) -> Int {
+                (v.type == "Trailer" ? 4 : 0) + (v.iso6391 == "tr" ? 2 : 0) + ((v.official ?? false) ? 1 : 0)
+            }
+            return score(a) > score(b)
+        }
+        return ranked.first.flatMap { URL(string: "https://www.youtube.com/watch?v=\($0.key)") }
+    }
+}
+
+struct TMDBProvider: Decodable, Hashable, Identifiable {
+    let providerId: Int
+    let providerName: String
+    let logoPath: String?
+
+    var id: Int { providerId }
+}
+
+struct TMDBRegionProviders: Decodable {
+    let link: String?
+    let flatrate: [TMDBProvider]?
+    let free: [TMDBProvider]?
+    let ads: [TMDBProvider]?
+}
+
+struct TMDBProvidersResponse: Decodable {
+    let results: [String: TMDBRegionProviders]
+}
+
 enum TMDBImage {
     static func poster(_ path: String?, size: String = "w342") -> URL? { url(path, size) }
     static func backdrop(_ path: String?) -> URL? { url(path, "w1280") }
     static func still(_ path: String?) -> URL? { url(path, "w300") }
     static func profile(_ path: String?) -> URL? { url(path, "w185") }
+    static func logo(_ path: String?) -> URL? { url(path, "w92") }
 
     private static func url(_ path: String?, _ size: String) -> URL? {
         guard let path, !path.isEmpty else { return nil }

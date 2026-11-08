@@ -7,6 +7,7 @@ final class DetailModel: ObservableObject {
     @Published var season: Int = 1
     @Published var episodes: [TMDBEpisode] = []
     @Published var loadingEpisodes = false
+    @Published var providers: [TMDBProvider] = []
 
     func load(_ ref: MediaRef, store: LibraryStore) async {
         do {
@@ -14,6 +15,7 @@ final class DetailModel: ObservableObject {
             detail = d
             error = nil
             store.updateRef(d.ref(ref.type))
+            providers = (try? await TMDBClient.shared.providers(ref.type, ref.tmdbId)) ?? []
             if ref.type == .tv {
                 let aired = NextEpisode.aired(seasons: d.regularSeasons, last: d.lastEpisodeToAir)
                 let next = NextEpisode.target(aired: aired, watched: store.watchedEpisodes(ref.tmdbId))
@@ -41,6 +43,7 @@ final class DetailModel: ObservableObject {
 struct DetailView: View {
     let ref: MediaRef
     @EnvironmentObject private var store: LibraryStore
+    @Environment(\.openURL) private var openURL
     @StateObject private var model = DetailModel()
 
     var body: some View {
@@ -72,6 +75,7 @@ struct DetailView: View {
                     Text(tagline).font(Theme.body(15)).italic().foregroundStyle(Theme.textSecondary)
                 }
                 actions(d, full)
+                if !model.providers.isEmpty { providerRow }
                 if let overview = d.overview, !overview.isEmpty {
                     Text(overview).font(Theme.body(16)).foregroundStyle(Theme.text).fixedSize(horizontal: false, vertical: true)
                 }
@@ -141,6 +145,15 @@ struct DetailView: View {
                     .background(Theme.surfaceHigh, in: Capsule())
                     .foregroundStyle(Theme.text)
             }
+            if let trailer = d.trailerURL {
+                Button { openURL(trailer) } label: {
+                    Image(systemName: "play.rectangle")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Theme.text)
+                        .padding(8)
+                }
+                .accessibilityLabel(L.trailer)
+            }
             if ref.type == .movie {
                 let watched = store.isMovieWatched(ref.tmdbId)
                 Button {
@@ -153,6 +166,27 @@ struct DetailView: View {
                 }
                 .accessibilityLabel(watched ? L.markUnwatched : L.markWatched)
             }
+        }
+    }
+
+    /// Nerede izlenir: Türkiye'deki platform logoları (veri JustWatch'tan, TMDB üzerinden).
+    private var providerRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(model.providers) { p in
+                        AsyncImage(url: TMDBImage.logo(p.logoPath)) { image in
+                            image.resizable().aspectRatio(contentMode: .fit)
+                        } placeholder: {
+                            Theme.surfaceHigh
+                        }
+                        .frame(width: 36, height: 36)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .accessibilityLabel(p.providerName)
+                    }
+                }
+            }
+            Text(L.providersCredit).font(Theme.body(11)).foregroundStyle(Theme.textSecondary)
         }
     }
 

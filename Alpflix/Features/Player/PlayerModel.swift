@@ -28,6 +28,14 @@ final class PlayerModel: ObservableObject {
     @Published var rate: Float = 1
     @Published var next: (season: Int, episode: Int)?
     @Published var resolvingNext = false
+    /// Şu an içinde bulunulan atlanabilir parça (giriş, özet, jenerik).
+    @Published var skip: SkipSegment?
+    /// Bölüm bitti, sıradaki bölüme geri sayım (sn).
+    @Published var countdown: Int?
+
+    private var segments: [SkipSegment] = []
+    private var dismissedSkips: Set<SkipKind> = []
+    private var countdownTask: Task<Void, Never>?
 
     private weak var store: LibraryStore?
     private var timer: Timer?
@@ -49,6 +57,7 @@ final class PlayerModel: ObservableObject {
     }
 
     func stop() {
+        countdownTask?.cancel()
         saveProgress(force: true)
         timer?.invalidate()
         timer = nil
@@ -67,6 +76,11 @@ final class PlayerModel: ObservableObject {
         audioTracks = []
         subtitleTracks = []
         next = nil
+        segments = []
+        dismissedSkips = []
+        skip = nil
+        countdownTask?.cancel()
+        countdown = nil
         let media = VLCMedia(url: request.url)
         media.addOption(":network-caching=3000")
         if request.startMs > 0 { media.addOption(":start-time=\(request.startMs / 1000)") }
@@ -82,6 +96,10 @@ final class PlayerModel: ObservableObject {
         let subs = await AddonClient.allSubtitles(store.addons, type: request.ref.type.addonType, id: id)
         let preferred = UserDefaults.standard.string(forKey: SettingsKeys.subtitleLanguage) ?? "tr"
         externalSubtitles = subs.sorted { Self.matches($0.lang, preferred) && !Self.matches($1.lang, preferred) }
+        if let url = SkipSegments.url(tmdbId: request.ref.tmdbId, season: request.season, episode: request.episode),
+           let data = try? await HTTP.data(url, timeout: 10) {
+            segments = SkipSegments.parse(data, season: request.season, episode: request.episode)
+        }
         if let s = request.season, let e = request.episode,
            let detail = try? await TMDBClient.shared.detail(.tv, request.ref.tmdbId) {
             let aired = NextEpisode.aired(seasons: detail.regularSeasons, last: detail.lastEpisodeToAir)
@@ -100,13 +118,56 @@ final class PlayerModel: ObservableObject {
         playing = player.isPlaying
         buffering = state == .opening || state == .buffering
         if state == .error { failed = true }
-        if state == .ended { ended = true }
+        if state == .ended && !ended {
+            ended = true
+            startCountdown()
+        }
         timeMs = Int64(player.time.intValue)
         lengthMs = Int64(player.media?.length.intValue ?? 0)
         refreshTracks()
         autoSelectSubtitle()
         saveProgress(force: false)
-        if lengthMs > 0, Double(timeMs) / Double(lengthMs) >= 0.9 { recordWatched() }
+        if lengthMs > 0 {
+            let threshold = min(Int64(Double(lengthMs) * 0.9), SkipSegments.creditsStart(segments, duration: lengthMs) ?? lengthMs)
+            if timeMs >= threshold { recordWatched() }
+        }
+        let active = SkipSegments.active(segments, position: timeMs, duration: lengthMs)
+        let shown = active.flatMap { dismissedSkips.contains($0.kind) ? nil : $0 }
+        if shown != skip { skip = shown }
+    }
+
+    /// Parçayı atla: jenerik/önizlemede sıradaki bölüm varsa ona geçilir, yoksa parçanın sonuna.
+    func skipSegment() {
+        guard let skip else { return }
+        dismissedSkips.insert(skip.kind)
+        self.skip = nil
+        if (skip.kind == .credits || skip.kind == .preview) && next != nil {
+            Task { await playNext() }
+            return
+        }
+        seek(toMs: min(skip.end(lengthMs), max(lengthMs - 500, 0)))
+    }
+
+    /// Bölüm bitti: ayar açıksa 5 sn geri sayımla sıradaki bölüm.
+    private func startCountdown() {
+        let auto = UserDefaults.standard.object(forKey: SettingsKeys.autoPlayNext) as? Bool ?? true
+        guard auto, next != nil, request.isEpisode else { return }
+        countdownTask?.cancel()
+        countdownTask = Task { [weak self] in
+            for remaining in stride(from: 5, through: 1, by: -1) {
+                guard let self, !Task.isCancelled else { return }
+                self.countdown = remaining
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+            guard let self, !Task.isCancelled else { return }
+            self.countdown = nil
+            await self.playNext()
+        }
+    }
+
+    func cancelCountdown() {
+        countdownTask?.cancel()
+        countdown = nil
     }
 
     private func refreshTracks() {

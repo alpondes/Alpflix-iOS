@@ -66,6 +66,15 @@ struct DiscoverView: View {
             .padding(.vertical, 12)
         }
         .navigationTitle(L.tabDiscover)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    PlatformsView()
+                } label: {
+                    Label(L.platforms, systemImage: "tv")
+                }
+            }
+        }
         .task { if model.items.isEmpty { await model.reload() } }
         .onChange(of: model.type) { _, _ in
             model.genre = nil

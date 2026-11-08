@@ -5,11 +5,13 @@ struct SettingsView: View {
     @EnvironmentObject private var store: LibraryStore
     @AppStorage(SettingsKeys.tmdbToken) private var savedToken = ""
     @AppStorage(SettingsKeys.subtitleLanguage) private var subtitleLanguage = "tr"
+    @AppStorage(SettingsKeys.autoPlayNext) private var autoPlayNext = true
     @State private var tokenDraft = ""
     @State private var addonUrl = ""
     @State private var adding = false
     @State private var message: String?
     @State private var importing = false
+    @State private var exporting = false
 
     var body: some View {
         Form {
@@ -52,16 +54,20 @@ struct SettingsView: View {
                 Text(L.settingsTmdbHint)
             }
 
-            Section(L.settingsSubtitleLanguage) {
+            Section(L.settingsPlayer) {
                 Picker(L.settingsSubtitleLanguage, selection: $subtitleLanguage) {
                     Text(L.languageTurkish).tag("tr")
                     Text(L.languageEnglish).tag("en")
                     Text(L.playerSubtitlesOff).tag("none")
                 }
+                Toggle(L.autoPlayNext, isOn: $autoPlayNext).tint(Theme.accent)
             }
 
             Section {
+                Button(L.settingsExport) { exporting = true }
                 Button(L.settingsImport) { importing = true }
+            } header: {
+                Text(L.settingsBackup)
             } footer: {
                 Text(L.settingsImportHint)
             }
@@ -79,6 +85,14 @@ struct SettingsView: View {
         .navigationTitle(L.tabSettings)
         .toolbar { EditButton() }
         .onAppear { tokenDraft = savedToken }
+        .fileExporter(
+            isPresented: $exporting,
+            document: BackupDocument(data: store.exportData()),
+            contentType: .json,
+            defaultFilename: "alpflix-ios-yedek"
+        ) { result in
+            if case .success = result { message = L.settingsExportDone }
+        }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: false) { result in
             importBackup(result)
         }
@@ -106,7 +120,7 @@ struct SettingsView: View {
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {
             let data = try Data(contentsOf: url)
-            let imported = try AndroidBackup.parse(data)
+            let imported = try LibraryStore.decodeBackup(data)
             store.merge(imported)
             message = L.settingsImportDone(imported.titles.count, imported.events.count, imported.addons.count)
         } catch {

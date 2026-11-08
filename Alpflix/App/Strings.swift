@@ -19,6 +19,15 @@ enum L {
     static let series = "Diziler"
     static let all = "Tümü"
     static let genres = "Türler"
+    static let platforms = "Platformlar"
+    static let netflixTop10 = "Netflix Türkiye Top 10"
+    static func weekEnding(_ date: String) -> String { "Hafta sonu: \(date)" }
+    static let newEntry = "Yeni"
+    static let sameRank = "Aynı"
+    static func weeksCount(_ n: Int) -> String { "\(n) hafta" }
+    static func platformNew(_ name: String) -> String { "\(name): son gelenler" }
+    static let top10Failed = "Netflix listesi alınamadı."
+    static let platformsCredit = "Netflix Top 10: Netflix Tudum (haftalık). Platform verileri JustWatch'tan (TMDB üzerinden)."
 
     static let searchPrompt = "Film, dizi ara"
     static let searchEmpty = "Sonuç bulunamadı."
@@ -30,6 +39,8 @@ enum L {
     static let seasons = "Sezonlar"
     static func season(_ n: Int) -> String { "\(n). sezon" }
     static let cast = "Oyuncular"
+    static let trailer = "Fragman"
+    static let providersCredit = "Türkiye'de izlenebildiği platformlar · JustWatch"
     static let recommendations = "Benzer yapımlar"
     static let markWatched = "İzlendi olarak işaretle"
     static let markUnwatched = "İzlenmedi olarak işaretle"
@@ -58,6 +69,12 @@ enum L {
     static let playerNext = "Sıradaki bölüm"
     static let playerFailed = "Bu kaynak oynatılamadı. Başka bir kaynak dene."
     static let playerClose = "Kapat"
+    static let skipIntro = "Girişi atla"
+    static let skipRecap = "Özeti atla"
+    static let skipCredits = "Jeneriği atla"
+    static let skipPreview = "Önizlemeyi atla"
+    static func nextIn(_ seconds: Int) -> String { "Sıradaki bölüm \(seconds) sn içinde" }
+    static let autoPlayNext = "Sıradaki bölümü kendiliğinden oynat"
 
     static let libraryEmpty = "Bu bölümde yapım yok."
 
@@ -69,13 +86,17 @@ enum L {
     static let settingsTmdb = "TMDB anahtarı"
     static let settingsTmdbHint = "Derlemede anahtar yoksa buraya TMDB okuma anahtarını (v4) gir."
     static let settingsTmdbSave = "Kaydet"
-    static let settingsImport = "Android yedeğini içe aktar"
-    static let settingsImportHint = "Alpflix Android'in yedek dosyası (alpflix-yedek-….json.gz): kütüphane, izleme geçmişi, kaldığın yerler ve eklentiler aktarılır."
+    static let settingsBackup = "Yedek"
+    static let settingsExport = "Yedeği Dosyalar'a kaydet"
+    static let settingsExportDone = "Yedek kaydedildi."
+    static let settingsImport = "Yedeği içe aktar (iOS ya da Android)"
+    static let settingsImportHint = "iOS yedeği ya da Alpflix Android'in yedek dosyası (alpflix-yedek-….json.gz): kütüphane, izleme geçmişi, kaldığın yerler ve eklentiler birleştirilir."
     static func settingsImportDone(_ titles: Int, _ events: Int, _ addons: Int) -> String {
         "Aktarıldı: \(titles) yapım, \(events) izleme kaydı, \(addons) eklenti."
     }
     static let settingsImportFailed = "Yedek okunamadı."
     static let settingsSubtitleLanguage = "Altyazı dili"
+    static let settingsPlayer = "Oynatıcı"
     static let languageTurkish = "Türkçe"
     static let languageEnglish = "İngilizce"
     static let settingsAbout = "Hakkında"
