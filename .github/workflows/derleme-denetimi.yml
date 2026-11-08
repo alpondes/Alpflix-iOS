@@ -1,0 +1,38 @@
+# Mac'te derleme denetimi (imzasız). Yalnız depo herkese açıkken çalışır (açık depolarda GitHub'ın Mac
+# makineleri ücretsiz); gizli depoda atlanır, kota harcamaz. TestFlight Codemagic'te.
+name: Derleme denetimi
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    if: ${{ !github.event.repository.private }}
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Araçlar
+        run: |
+          brew install xcodegen || true
+          xcodebuild -version
+
+      - name: Xcode projesini üret
+        run: xcodegen generate
+
+      - name: CocoaPods
+        run: pod install --repo-update
+
+      - name: Derle (imzasız, cihaz için)
+        run: |
+          set -o pipefail
+          xcodebuild -workspace Alpflix.xcworkspace -scheme Alpflix -configuration Release \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Hataları özetle
+        if: failure()
+        run: grep -E "^/.*error:" build.log | sed 's|^.*/Alpflix/|Alpflix/|' | sort -u | head -80 || true
