@@ -20,6 +20,20 @@ enum L {
     static let all = "Tümü"
     static let genres = "Türler"
     static let platforms = "Platformlar"
+    static let upcoming = "Yakında"
+    static let periodThisWeek = "Bu hafta"
+    static let periodNextWeek = "Gelecek hafta"
+    static let periodComingWeeks = "Önümüzdeki haftalar"
+    static let periodLater = "Daha sonra"
+    static let kindNewSeries = "Yeni dizi"
+    static func kindNewSeason(_ n: Int) -> String { "\(n). sezon başlıyor" }
+    static let kindDigital = "Dijital çıkış"
+    static func today(_ text: String) -> String { "Bugün: \(text)" }
+    static let unknownPlatform = "Platform belli değil"
+    static let reminders = "Hatırlatıcıların"
+    static let remind = "Hatırlat"
+    static let removeReminder = "Hatırlatıcıyı kaldır"
+    static let upcomingEmpty = "Yakında bir çıkış bulunamadı."
     static let netflixTop10 = "Netflix Türkiye Top 10"
     static func weekEnding(_ date: String) -> String { "Hafta sonu: \(date)" }
     static let newEntry = "Yeni"

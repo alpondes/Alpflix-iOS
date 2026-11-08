@@ -15,8 +15,12 @@ final class LibraryStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
 
     init() {
-        if let bytes = try? Data(contentsOf: fileURL), let decoded = try? JSONDecoder().decode(AppData.self, from: bytes) {
+        guard let bytes = try? Data(contentsOf: fileURL) else { return }
+        if let decoded = try? JSONDecoder().decode(AppData.self, from: bytes) {
             data = decoded
+        } else {
+            // Okunamayan dosya üzerine yazılmasın: kenara alınır.
+            try? bytes.write(to: fileURL.deletingLastPathComponent().appendingPathComponent("alpflix-okunamayan-\(Int(Date().timeIntervalSince1970)).json"))
         }
     }
 
@@ -172,6 +176,34 @@ final class LibraryStore: ObservableObject {
             let ref = data.titles[key]?.ref ?? MediaRef(tmdbId: id, type: .tv, title: "", posterPath: nil, backdropPath: nil, year: nil)
             return (ref, at)
         }.sorted { $0.1 > $1.1 }
+    }
+
+    // MARK: Hatırlatıcılar
+
+    /// Günü geçmemiş hatırlatıcılar, tarihe göre.
+    var reminders: [Reminder] {
+        let start = Calendar.current.startOfDay(for: Date())
+        return data.reminders.filter { $0.date >= start }.sorted { $0.date < $1.date }
+    }
+
+    func hasReminder(_ id: String) -> Bool { data.reminders.contains { $0.id == id } }
+
+    /// Varsa kaldırır, yoksa kurar (bildirim izni ilk seferde istenir). Kurulduysa true.
+    @discardableResult
+    func toggleReminder(_ reminder: Reminder) async -> Bool {
+        if hasReminder(reminder.id) {
+            ReminderScheduler.cancel(reminder)
+            mutate { $0.reminders.removeAll { $0.id == reminder.id } }
+            return false
+        }
+        _ = await ReminderScheduler.requestPermission()
+        ReminderScheduler.schedule(reminder)
+        let start = Calendar.current.startOfDay(for: Date())
+        mutate { d in
+            d.reminders.removeAll { $0.date < start }
+            d.reminders.append(reminder)
+        }
+        return true
     }
 
     // MARK: Eklentiler

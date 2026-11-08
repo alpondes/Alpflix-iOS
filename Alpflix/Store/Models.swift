@@ -51,6 +51,8 @@ struct PlaybackProgress: Codable, Hashable {
     }
 }
 
+/// Bütün kullanıcı verisi. Okuma esnektir: sonradan eklenen alanlar eski dosyada yoksa boş başlar
+/// (yeni sürüm eski veriyi asla silmez).
 struct AppData: Codable {
     var titles: [String: TrackedTitle] = [:]
     var events: [WatchEvent] = []
@@ -58,6 +60,36 @@ struct AppData: Codable {
     var addons: [InstalledAddon] = []
     /// "İzlemeye devam et"ten kaldırılanlar: anahtar → kaldırma zamanı.
     var dismissedContinue: [String: Date] = [:]
+    /// Yakında hatırlatıcıları.
+    var reminders: [Reminder] = []
+
+    init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case titles, events, progress, addons, dismissedContinue, reminders
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        titles = (try? c.decodeIfPresent([String: TrackedTitle].self, forKey: .titles)) ?? [:]
+        events = (try? c.decodeIfPresent([WatchEvent].self, forKey: .events)) ?? []
+        progress = (try? c.decodeIfPresent([String: PlaybackProgress].self, forKey: .progress)) ?? [:]
+        addons = (try? c.decodeIfPresent([InstalledAddon].self, forKey: .addons)) ?? []
+        dismissedContinue = (try? c.decodeIfPresent([String: Date].self, forKey: .dismissedContinue)) ?? [:]
+        reminders = (try? c.decodeIfPresent([Reminder].self, forKey: .reminders)) ?? []
+    }
+}
+
+/// "Hatırlat": Yakında'daki bir çıkış için o gün bildirim.
+struct Reminder: Codable, Hashable, Identifiable {
+    let ref: MediaRef
+    let date: Date
+    let kind: String
+    let platform: String?
+    let season: Int?
+    let episode: Int?
+
+    var id: String { [ref.id, season.map { "s\($0)" }, episode.map { "e\($0)" }].compactMap { $0 }.joined(separator: ":") }
 }
 
 struct EpisodeRef: Hashable, Comparable, Codable {

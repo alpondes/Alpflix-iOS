@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreText
 import SwiftUI
 
 @main
@@ -15,8 +16,8 @@ struct AlpflixApp: App {
         nav.configureWithOpaqueBackground()
         nav.backgroundColor = background
         nav.shadowColor = .clear
-        nav.titleTextAttributes = [.foregroundColor: text]
-        nav.largeTitleTextAttributes = [.foregroundColor: text, .font: UIFont(name: "Archivo", size: 32) ?? UIFont.boldSystemFont(ofSize: 32)]
+        nav.largeTitleTextAttributes = [.foregroundColor: text, .font: Self.archivo(size: 32, weight: 700)]
+        nav.titleTextAttributes = [.foregroundColor: text, .font: Self.archivo(size: 17, weight: 650)]
         UINavigationBar.appearance().standardAppearance = nav
         UINavigationBar.appearance().scrollEdgeAppearance = nav
         let tab = UITabBarAppearance()
@@ -24,6 +25,15 @@ struct AlpflixApp: App {
         tab.backgroundColor = UIColor(red: 0x19 / 255, green: 0x16 / 255, blue: 0x1B / 255, alpha: 1)
         UITabBar.appearance().standardAppearance = tab
         UITabBar.appearance().scrollEdgeAppearance = tab
+    }
+
+    /// Archivo değişken yazı tipi, istenen kalınlıkta ("wght" ekseni); yoksa sistemin kalını.
+    private static func archivo(size: CGFloat, weight: CGFloat) -> UIFont {
+        guard let base = UIFont(name: "Archivo", size: size) else { return .boldSystemFont(ofSize: size) }
+        let wght = 0x77676874 // 'wght'
+        let variation = UIFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String)
+        let descriptor = base.fontDescriptor.addingAttributes([variation: [wght: weight]])
+        return UIFont(descriptor: descriptor, size: size)
     }
 
     var body: some Scene {

@@ -15,6 +15,8 @@ final class PlatformsModel: ObservableObject {
     @Published var top10Failed = false
     @Published var category: Top10Category = .tv
     @Published var rows: [PlatformRow] = []
+    /// nil: yükleniyor.
+    @Published var upcoming: [UpcomingEntry]?
     private var loaded = false
 
     /// Sırayla gösterilen platformlar (Türkiye'de varsa).
@@ -35,6 +37,7 @@ final class PlatformsModel: ObservableObject {
             }
         }
         rows = result
+        upcoming = await TMDBClient.shared.upcoming(picked)
         let top = try? await NetflixTop10Store.shared.load(force: force)
         if let t = top {
             films = t.films
@@ -51,12 +54,14 @@ final class PlatformsModel: ObservableObject {
 
 /// Platformlar: Netflix Türkiye Top 10 (resmî haftalık liste) ve platformlara son gelenler.
 struct PlatformsView: View {
+    @EnvironmentObject private var store: LibraryStore
     @StateObject private var model = PlatformsModel()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 top10
+                upcomingSection
                 ForEach(model.rows) { row in
                     MediaRow(title: L.platformNew(row.provider.providerName), items: row.items)
                 }
@@ -99,6 +104,94 @@ struct PlatformsView: View {
                 ProgressView().tint(Theme.accent).frame(maxWidth: .infinity).padding()
             }
         }
+    }
+
+    /// Yakında: hatırlatıcılar, sonra dönem başına yatay sıra (bu hafta, gelecek hafta…).
+    @ViewBuilder
+    private var upcomingSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionTitle(text: L.upcoming)
+            let reminders = store.reminders
+            if !reminders.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(L.reminders, systemImage: "bell.fill").font(Theme.body(15)).foregroundStyle(Theme.accent).padding(.horizontal, Theme.gutter)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(alignment: .top, spacing: 12) {
+                            ForEach(reminders) { r in
+                                NavigationLink(value: r.ref) {
+                                    PosterCard(ref: r.ref, subtitle: [shortDate(r.date), r.platform].compactMap { $0 }.joined(separator: " · "))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, Theme.gutter)
+                    }
+                }
+            }
+            if let entries = model.upcoming {
+                if entries.isEmpty {
+                    MessageView(text: L.upcomingEmpty)
+                } else {
+                    let groups = Dictionary(grouping: entries) { UpcomingPeriod.of($0.date) }
+                    ForEach(UpcomingPeriod.allCases.filter { groups[$0] != nil }, id: \.self) { period in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(period.label).font(Theme.body(15).weight(.semibold)).foregroundStyle(Theme.accent).padding(.horizontal, Theme.gutter)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(alignment: .top, spacing: 12) {
+                                    ForEach(groups[period] ?? []) { entry in upcomingCard(entry) }
+                                }
+                                .padding(.horizontal, Theme.gutter)
+                            }
+                        }
+                    }
+                }
+            } else {
+                ProgressView().tint(Theme.accent).frame(maxWidth: .infinity).padding()
+            }
+        }
+    }
+
+    private func upcomingCard(_ entry: UpcomingEntry) -> some View {
+        let reminded = store.hasReminder(entry.reminder.id)
+        return VStack(alignment: .leading, spacing: 4) {
+            ZStack(alignment: .topTrailing) {
+                NavigationLink(value: entry.ref) {
+                    ZStack(alignment: .bottomLeading) {
+                        PosterImage(path: entry.ref.posterPath, title: entry.ref.title)
+                        Text(shortDate(entry.date))
+                            .font(Theme.mono(11).weight(.semibold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Theme.accent, in: RoundedRectangle(cornerRadius: 4))
+                            .foregroundStyle(Theme.onAccent)
+                            .padding(6)
+                    }
+                }
+                .buttonStyle(.plain)
+                Button {
+                    Task { await store.toggleReminder(entry.reminder) }
+                } label: {
+                    Image(systemName: reminded ? "bell.fill" : "bell")
+                        .font(.system(size: 14, weight: .semibold))
+                        .padding(7)
+                        .background(reminded ? Theme.accent : Theme.surface.opacity(0.85), in: Circle())
+                        .foregroundStyle(reminded ? Theme.onAccent : Theme.text)
+                }
+                .padding(6)
+                .accessibilityLabel(reminded ? L.removeReminder : L.remind)
+            }
+            Text(entry.ref.title).font(Theme.body(13)).foregroundStyle(Theme.text).lineLimit(2)
+            Text(entry.kind.label(season: entry.season, episode: entry.episode)).font(Theme.mono(11)).foregroundStyle(Theme.textSecondary).lineLimit(1)
+            Text(entry.platform?.providerName ?? L.unknownPlatform).font(Theme.body(11)).foregroundStyle(Theme.textSecondary).lineLimit(1)
+        }
+        .frame(width: 124, alignment: .topLeading)
+    }
+
+    private func shortDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "tr_TR")
+        f.dateFormat = "d MMM"
+        return f.string(from: date)
     }
 
     @ViewBuilder

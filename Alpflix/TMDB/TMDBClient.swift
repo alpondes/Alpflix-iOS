@@ -102,6 +102,64 @@ actor TMDBClient {
         return result.results
     }
 
+    // MARK: Yakında
+
+    private func isoDay(_ date: Date) -> String { String(ISO8601DateFormatter().string(from: date).prefix(10)) }
+
+    /// Önümüzdeki [days] gün: platformların yeni dizileri, yeni sezon/bölümleri ve dijitale gelen filmler.
+    func upcoming(_ platforms: [TMDBProvider], days: Int = 60) async -> [UpcomingEntry] {
+        let today = Date()
+        let from = isoDay(today)
+        let until = isoDay(today.addingTimeInterval(Double(days) * 86400))
+        var entries: [UpcomingEntry] = []
+        for platform in platforms {
+            let networks = PlatformNetworks.ids(platform.providerName)
+            if !networks.isEmpty, let page: TMDBPage<TMDBItem> = try? await get("discover/tv", [
+                "with_networks": networks.map { String($0) }.joined(separator: "|"),
+                "first_air_date.gte": from, "first_air_date.lte": until, "sort_by": "popularity.desc",
+            ]) {
+                for item in page.results {
+                    if let ref = item.ref(fallback: .tv), let date = dateOf(item.firstAirDate) {
+                        entries.append(UpcomingEntry(date: date, ref: ref, kind: .newSeries, platform: platform, season: nil, episode: nil))
+                    }
+                }
+            }
+            let running: TMDBPage<TMDBItem>? = try? await get("discover/tv", [
+                "with_watch_providers": "\(platform.providerId)", "watch_region": region, "with_watch_monetization_types": "flatrate",
+                "air_date.gte": from, "air_date.lte": until, "sort_by": "popularity.desc",
+            ])
+            for item in (running?.results ?? []).prefix(15) {
+                guard let ref = item.ref(fallback: .tv), !entries.contains(where: { $0.ref.id == ref.id }),
+                      let show = try? await self.detail(.tv, item.id), let next = show.nextEpisodeToAir,
+                      let date = dateOf(next.airDate), date >= Calendar.current.startOfDay(for: today) else { continue }
+                let kind: UpcomingKind = next.episodeNumber == 1 && next.seasonNumber > 1 ? .newSeason : .newEpisode
+                entries.append(UpcomingEntry(date: date, ref: ref, kind: kind, platform: platform, season: next.seasonNumber, episode: next.episodeNumber))
+            }
+        }
+        // Dijitale gelecek filmler; platform, dijital çıkış notundan.
+        if let movies: TMDBPage<TMDBItem> = try? await get("discover/movie", [
+            "with_release_type": "4", "release_date.gte": from, "release_date.lte": until, "sort_by": "popularity.desc",
+        ]) {
+            for item in movies.results.prefix(20) {
+                guard let ref = item.ref(fallback: .movie) else { continue }
+                guard let dates: TMDBReleaseDates = try? await get("movie/\(item.id)/release_dates") else { continue }
+                var digital: [(String, Date, String?)] = []
+                for country in dates.results {
+                    for entry in country.releaseDates where entry.type == 4 {
+                        if let date = dateOf(entry.releaseDate), date >= Calendar.current.startOfDay(for: today) {
+                            digital.append((country.iso31661, date, entry.note))
+                        }
+                    }
+                }
+                guard !digital.isEmpty else { continue }
+                let matched = platforms.first { p in digital.contains { PlatformNetworks.noteMatches($0.2, p.providerName) } }
+                let date = digital.first(where: { $0.0 == region })?.1 ?? digital.map { $0.1 }.min() ?? today
+                entries.append(UpcomingEntry(date: date, ref: ref, kind: .digitalMovie, platform: matched, season: nil, episode: nil))
+            }
+        }
+        return entries.sorted { $0.date < $1.date }
+    }
+
     // MARK: Ayrıntı
 
     func detail(_ type: MediaType, _ id: Int, fresh: Bool = false) async throws -> TMDBDetail {
@@ -130,6 +188,21 @@ actor TMDBClient {
         seasonCache[key] = season
         return season
     }
+}
+
+struct TMDBReleaseDates: Decodable {
+    struct Country: Decodable {
+        let iso31661: String
+        let releaseDates: [Entry]
+    }
+
+    struct Entry: Decodable {
+        let type: Int
+        let releaseDate: String?
+        let note: String?
+    }
+
+    let results: [Country]
 }
 
 enum SettingsKeys {
