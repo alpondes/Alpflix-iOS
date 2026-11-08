@@ -1,5 +1,10 @@
 # Alpflix iOS — TestFlight kurulumu (bir kez, ~20 dk)
 
+> Depo şu an herkese açık: GitHub her push'ta uygulamayı ücretsiz Mac'te derleyip simülatörde açıyor
+> ("Derleme denetimi"). TestFlight kurulumu bitince depoyu yeniden gizliye alabilirsin
+> (Settings → General → Danger Zone → Change visibility); Codemagic gizli depoyla da çalışır, denetim işi
+> gizliyken kendiliğinden durur. Boş kalan `Alpflix-iOS-derleme` deposunu silebilirsin.
+
 Mac gerekmez; hepsi tarayıcıdan (tablet/telefon da olur). Derleme **Codemagic**'in ücretsiz kotasında
 (ayda 500 dk Mac M2) yapılır, kart girilmezse ücret çıkmaz.
 
