@@ -92,6 +92,25 @@ enum L {
 
     static let libraryEmpty = "Bu bölümde yapım yok."
 
+    static let profiles = "Profiller"
+    static let defaultProfileName = "Alp"
+    static let profilesHint = "Her profilin kütüphanesi, geçmişi, kaldığı yerleri ve eklentileri ayrıdır. Basılı tutunca: ad, PIN, sil."
+    static let profileAdd = "Profil ekle"
+    static let profileName = "Profil adı"
+    static let profileRename = "Yeniden adlandır"
+    static let profileActive = "Kullanımda"
+    static let profileTapToSwitch = "Geçmek için dokun"
+    static let profilePin = "PIN (4 hane)"
+    static let profilePinSet = "PIN koy"
+    static let profilePinRemove = "PIN'i kaldır"
+    static let profilePinNew = "Yeni PIN (4 hane)"
+    static let profilePinCurrent = "Şu anki PIN"
+    static let profilePinWrong = "PIN yanlış."
+    static func profileUnlock(_ name: String) -> String { "\(name) profilinin PIN'i" }
+    static let profileGateBody = "Bu profil PIN ile kilitli."
+    static let profileGateOpen = "Aç"
+    static let profileGateOther = "Başka profil"
+
     static let settingsAddons = "Eklentiler"
     static let settingsAddAddon = "Eklenti ekle"
     static let settingsAddonUrl = "Manifest adresi (…/manifest.json)"

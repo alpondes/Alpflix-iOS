@@ -5,9 +5,13 @@ import SwiftUI
 @main
 struct AlpflixApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var store = LibraryStore()
+    @StateObject private var profiles: ProfileStore
+    @StateObject private var store: LibraryStore
 
     init() {
+        let profiles = ProfileStore()
+        _profiles = StateObject(wrappedValue: profiles)
+        _store = StateObject(wrappedValue: LibraryStore(fileName: profiles.active.fileName))
         // Sessiz düğmesi açıkken de ses gelsin; resim içinde resim ve arka planda ses için.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         let background = UIColor(red: 0x12 / 255, green: 0x10 / 255, blue: 0x14 / 255, alpha: 1)
@@ -40,6 +44,7 @@ struct AlpflixApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(store)
+                .environmentObject(profiles)
                 .preferredColorScheme(.dark)
                 .tint(Theme.accent)
         }
@@ -73,6 +78,7 @@ struct SourcesRoute: Hashable {
 }
 
 struct RootView: View {
+    @EnvironmentObject private var profiles: ProfileStore
     /// Simülatör denetimi açılışta bir sekmeyle başlatabilir ("-alpflixTab 2").
     @State private var selection: Int = {
         let args = ProcessInfo.processInfo.arguments
@@ -81,6 +87,14 @@ struct RootView: View {
     }()
 
     var body: some View {
+        if profiles.unlocked {
+            tabs
+        } else {
+            ProfileGate()
+        }
+    }
+
+    private var tabs: some View {
         TabView(selection: $selection) {
             tab(HomeView(), L.tabHome, "house").tag(0)
             tab(DiscoverView(), L.tabDiscover, "safari").tag(1)

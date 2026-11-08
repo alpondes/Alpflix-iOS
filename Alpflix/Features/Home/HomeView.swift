@@ -74,10 +74,11 @@ final class HomeModel: ObservableObject {
 
 struct HomeView: View {
     @EnvironmentObject private var store: LibraryStore
+    @EnvironmentObject private var profiles: ProfileStore
     @StateObject private var model = HomeModel()
 
     private var continueKey: String {
-        "\(store.data.events.count)|\(store.data.progress.count)|\(store.data.dismissedContinue.count)|\(store.data.progress.values.map(\.updatedAt).max()?.timeIntervalSince1970 ?? 0)"
+        "\(profiles.activeId)|\(store.data.events.count)|\(store.data.progress.count)|\(store.data.dismissedContinue.count)|\(store.data.progress.values.map(\.updatedAt).max()?.timeIntervalSince1970 ?? 0)"
     }
 
     var body: some View {
@@ -97,6 +98,12 @@ struct HomeView: View {
             .padding(.vertical, 16)
         }
         .navigationTitle(L.tabHome)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink { ProfilesView() } label: { ProfileAvatar(profile: profiles.active, size: 30) }
+                    .accessibilityLabel(L.profiles)
+            }
+        }
         .refreshable {
             await model.load(force: true)
             await model.refreshContinue(store)

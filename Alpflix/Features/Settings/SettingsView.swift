@@ -15,6 +15,9 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                NavigationLink { ProfilesView() } label: { Label(L.profiles, systemImage: "person.2") }
+            }
             Section(L.settingsAddons) {
                 ForEach(store.addons) { addon in
                     Toggle(isOn: Binding(get: { addon.enabled }, set: { store.setAddonEnabled(addon, $0) })) {

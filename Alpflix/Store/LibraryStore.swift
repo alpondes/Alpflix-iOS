@@ -6,15 +6,32 @@ import SwiftUI
 final class LibraryStore: ObservableObject {
     @Published private(set) var data = AppData()
 
-    private let fileURL: URL = {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("alpflix.json")
-    }()
+    private var fileURL: URL
 
     private var saveTask: Task<Void, Never>?
 
-    init() {
+    /// Profilin veri dosyası (Application Support).
+    nonisolated static func fileURL(_ name: String) -> URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent(name)
+    }
+
+    init(fileName: String = "alpflix.json") {
+        fileURL = Self.fileURL(fileName)
+        read()
+    }
+
+    /// Başka profilin dosyasına geçer: bekleyen yazma hemen yapılır, yeni dosya okunur.
+    func load(fileName: String) {
+        saveTask?.cancel()
+        if let bytes = try? JSONEncoder().encode(data) { try? bytes.write(to: fileURL, options: .atomic) }
+        fileURL = Self.fileURL(fileName)
+        data = AppData()
+        read()
+    }
+
+    private func read() {
         guard let bytes = try? Data(contentsOf: fileURL) else { return }
         if let decoded = try? JSONDecoder().decode(AppData.self, from: bytes) {
             data = decoded
