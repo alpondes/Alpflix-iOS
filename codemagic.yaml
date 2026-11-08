@@ -1,0 +1,52 @@
+# Codemagic: her push'ta (main) iPhone derlemesi ve TestFlight'a yükleme.
+# Kurulum adımları: KURULUM.md
+workflows:
+  ios-testflight:
+    name: Alpflix iOS → TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: Alpflix ASC
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.alpflix.ios
+      groups:
+        - alpflix
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: TMDB anahtarını derlemeye koy
+        script: |
+          # Anahtar yalnız derleme sırasında dosyaya yazılır, depoya girmez. Yoksa uygulamadaki Ayarlar'dan girilir.
+          if [ -n "$TMDB_API_TOKEN" ]; then
+            printf 'enum BuildSecrets {\n    static let tmdbToken = "%s"\n}\n' "$TMDB_API_TOKEN" > Alpflix/Core/BuildSecrets.swift
+            echo "TMDB anahtarı eklendi."
+          else
+            echo "TMDB_API_TOKEN yok; anahtar uygulamada Ayarlar'dan girilecek."
+          fi
+      - name: Xcode projesini üret
+        script: |
+          brew install xcodegen || brew upgrade xcodegen || true
+          xcodegen generate
+      - name: CocoaPods
+        script: pod install --repo-update
+      - name: İmza profillerini uygula
+        script: xcode-project use-profiles
+      - name: Derleme numarası
+        script: agvtool new-version -all $(($BUILD_NUMBER + 1))
+      - name: IPA derle
+        script: xcode-project build-ipa --workspace Alpflix.xcworkspace --scheme Alpflix
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

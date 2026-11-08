@@ -1,0 +1,9 @@
+# Xcode / XcodeGen / CocoaPods çıktıları (proje CI'da üretilir)
+*.xcodeproj
+*.xcworkspace
+Pods/
+Podfile.lock
+build/
+DerivedData/
+xcuserdata/
+.DS_Store

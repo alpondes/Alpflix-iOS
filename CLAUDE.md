@@ -1,0 +1,23 @@
+# Alpflix iOS — Claude Code çalışma notları
+
+Alpflix'in (Android, `alpondes/Alpflix`) iPhone sürümü: SwiftUI, iOS 17+, kişisel kullanım, TestFlight.
+İlk sürüm: keşfet, arama, yapım sayfası (sezon/bölüm, izlendi), Stremio eklentileriyle kaynaklar,
+VLC oynatıcı (ses/altyazı/hız, kaldığın yer, sıradaki bölüm), kütüphane durumları, izlemeye devam et,
+Android yedeğini içe aktarma. Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
+
+## Kurallar (Android ile aynı)
+- Puanlama yok. Yapay zekâ özelliği yok. Analitik/reklam yok. Trakt yok. Doğrudan debrid API yok.
+  Kaçak sitelerden kazıma yok. Uygulama içinde torrent motoru yok (torrent kaynakları gösterilir, oynatılmaz).
+- Gizli değerler depoya girmez: TMDB anahtarı Codemagic ortam değişkeninden derlemede
+  `Alpflix/Core/BuildSecrets.swift`'e yazılır (depoda boş) ya da uygulamada Ayarlar'dan girilir.
+  Eklenti adresleri arayüzde maskelenir (`maskedUrl`), hata metnine ve log'a yazılmaz.
+- Türkçe arayüz; metinler `App/Strings.swift` (`L`) içinde, görünümlerde sabit metin yok.
+- Tasarım: `App/Theme.swift` (zemin #121014, metin #EDE8E3, vurgu #F2784B; Archivo / Atkinson Hyperlegible
+  Next / IBM Plex Mono, fontlar `Resources/Fonts`). Saf siyah/beyaz, mor-mavi gradyan, buzlu cam yok.
+
+## Derleme
+- Mac yok: Codemagic (`codemagic.yaml`) → XcodeGen (`project.yml`) → CocoaPods (MobileVLCKit 3.6) →
+  imza (`xcode-project use-profiles`) → IPA → TestFlight. Kurulum: `KURULUM.md`.
+- Xcode projesi ve Pods depoda yok (`.gitignore`); her derlemede üretilir.
+- Bulut konteynerinde Swift derleyicisi yok; sözdizimi tree-sitter ile denetlenir, tür hataları
+  Codemagic derlemesinde görülür.

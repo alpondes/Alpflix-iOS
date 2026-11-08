@@ -1,0 +1,91 @@
+/// Arayüz metinleri (Türkçe). Sabit kodlanmış metin yok; hepsi burada.
+enum L {
+    static let tabHome = "Ana Sayfa"
+    static let tabDiscover = "Keşfet"
+    static let tabSearch = "Ara"
+    static let tabLibrary = "Kütüphane"
+    static let tabSettings = "Ayarlar"
+
+    static let continueWatching = "İzlemeye devam et"
+    static let watchlist = "İzleyeceklerim"
+    static let removeFromContinue = "İzlemeye devam et'ten kaldır"
+    static let trending = "Bu hafta trend"
+    static let popularMovies = "Popüler filmler"
+    static let popularSeries = "Popüler diziler"
+    static let nowPlaying = "Vizyonda"
+    static let onTheAir = "Yayında olan diziler"
+    static let topRated = "En sevilenler"
+    static let movies = "Filmler"
+    static let series = "Diziler"
+    static let all = "Tümü"
+    static let genres = "Türler"
+
+    static let searchPrompt = "Film, dizi ara"
+    static let searchEmpty = "Sonuç bulunamadı."
+    static let searchHint = "Aramak için en az iki harf yaz."
+
+    static let play = "Oynat"
+    static let resume = "Devam et"
+    static let sources = "Kaynaklar"
+    static let seasons = "Sezonlar"
+    static func season(_ n: Int) -> String { "\(n). sezon" }
+    static let cast = "Oyuncular"
+    static let recommendations = "Benzer yapımlar"
+    static let markWatched = "İzlendi olarak işaretle"
+    static let markUnwatched = "İzlenmedi olarak işaretle"
+    static let status = "Durum"
+    static let removeStatus = "Kütüphaneden çıkar"
+    static func minutesLeft(_ m: Int) -> String { "\(m) dk kaldı" }
+    static func nextUp(_ code: String) -> String { "Sıradaki: \(code)" }
+
+    static let statusWatching = "İzliyorum"
+    static let statusPlan = "İzleyeceğim"
+    static let statusOnHold = "Beklemede"
+    static let statusDropped = "Bıraktım"
+    static let statusCompleted = "Bitti"
+
+    static let sourcesLoading = "Eklentilerden kaynaklar aranıyor…"
+    static let sourcesEmpty = "Kaynak bulunamadı."
+    static let sourcesNoAddons = "Hiç eklenti yok. Ayarlar > Eklentiler'den Torrentio gibi bir eklenti ekle."
+    static let sourceTorrentOnly = "Torrent (iPhone'da doğrudan oynatılamaz)"
+    static let cached = "Hazır"
+    static let noImdb = "Bu yapımın IMDb kimliği yok; eklentiler kaynak bulamaz."
+
+    static let playerAudio = "Ses"
+    static let playerSubtitles = "Altyazı"
+    static let playerSubtitlesOff = "Kapalı"
+    static let playerSpeed = "Hız"
+    static let playerNext = "Sıradaki bölüm"
+    static let playerFailed = "Bu kaynak oynatılamadı. Başka bir kaynak dene."
+    static let playerClose = "Kapat"
+
+    static let libraryEmpty = "Bu bölümde yapım yok."
+
+    static let settingsAddons = "Eklentiler"
+    static let settingsAddAddon = "Eklenti ekle"
+    static let settingsAddonUrl = "Manifest adresi (…/manifest.json)"
+    static let settingsAddonAdd = "Ekle"
+    static let settingsAddonFailed = "Eklenti eklenemedi. Adresi kontrol et."
+    static let settingsTmdb = "TMDB anahtarı"
+    static let settingsTmdbHint = "Derlemede anahtar yoksa buraya TMDB okuma anahtarını (v4) gir."
+    static let settingsTmdbSave = "Kaydet"
+    static let settingsImport = "Android yedeğini içe aktar"
+    static let settingsImportHint = "Alpflix Android'in yedek dosyası (alpflix-yedek-….json.gz): kütüphane, izleme geçmişi, kaldığın yerler ve eklentiler aktarılır."
+    static func settingsImportDone(_ titles: Int, _ events: Int, _ addons: Int) -> String {
+        "Aktarıldı: \(titles) yapım, \(events) izleme kaydı, \(addons) eklenti."
+    }
+    static let settingsImportFailed = "Yedek okunamadı."
+    static let settingsSubtitleLanguage = "Altyazı dili"
+    static let languageTurkish = "Türkçe"
+    static let languageEnglish = "İngilizce"
+    static let settingsAbout = "Hakkında"
+    static func settingsVersion(_ v: String, _ b: String) -> String { "Alpflix iOS \(v) (derleme \(b))" }
+    static let settingsCredit = "Film ve dizi bilgileri TMDB'den. Bu ürün TMDB API'sini kullanır ama TMDB tarafından onaylanmamıştır."
+
+    static let errorNoToken = "TMDB anahtarı yok. Ayarlar'dan gir."
+    static let errorNetwork = "Bağlantı kurulamadı."
+    static let retry = "Yeniden dene"
+    static let ok = "Tamam"
+    static let cancel = "Vazgeç"
+    static let delete = "Sil"
+}
