@@ -236,7 +236,33 @@ final class PlayerModel: ObservableObject {
         autoSubtitleDone = true
         guard let url = URL(string: subtitle.url), !addedSubtitles.contains(subtitle.url) else { return }
         addedSubtitles.insert(subtitle.url)
-        _ = player.addPlaybackSlave(url, type: .subtitle, enforce: true)
+        Task {
+            // Uzak adres (çoğu uzantısız, bazen gzip) önce cihaza .srt/.vtt olarak indirilir; VLC dosyayı
+            // uzantısından tanır. İndirilemezse adres doğrudan verilir.
+            let local = await Self.downloadSubtitle(url) ?? url
+            _ = player.addPlaybackSlave(local, type: .subtitle, enforce: true)
+        }
+    }
+
+    private static func downloadSubtitle(_ url: URL) async -> URL? {
+        guard url.scheme?.hasPrefix("http") == true,
+              var data = try? await HTTP.data(url, timeout: 20),
+              !data.isEmpty, data.count < 8_000_000 else { return nil }
+        if data.count > 2, data[data.startIndex] == 0x1f, data[data.startIndex + 1] == 0x8b {
+            guard let unzipped = AndroidBackup.gunzip(data) else { return nil }
+            data = unzipped
+        }
+        // Türkçe altyazılarda yaygın Windows-1254; VLC'ye UTF-8 verilir.
+        guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .windowsCP1254) else { return nil }
+        let ext = text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("WEBVTT") ? "vtt" : "srt"
+        let name = "alpflix-altyazi-\(UUID().uuidString).\(ext)"
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        do {
+            try Data(text.utf8).write(to: file)
+            return file
+        } catch {
+            return nil
+        }
     }
 
     // MARK: Kayıt

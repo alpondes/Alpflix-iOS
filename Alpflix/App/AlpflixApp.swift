@@ -68,6 +68,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 }
 
 /// Kaynak listesine gidiş: yapım, bölüm ve (devam ediliyorsa) başlangıç konumu.
+/// Platformlar sayfası. Değer tabanlı rota: oradan açılan yapım sayfası aynı yığına eklenir
+/// (görünüm tabanlı bağlantıdan değer tabanlı geçiş SwiftUI'da sayfayı geri attırıyordu).
+struct PlatformsRoute: Hashable {}
+
 struct SourcesRoute: Hashable {
     let ref: MediaRef
     let imdbId: String?
@@ -110,6 +114,7 @@ struct RootView: View {
                 .background(Theme.background.ignoresSafeArea())
                 .navigationDestination(for: MediaRef.self) { DetailView(ref: $0) }
                 .navigationDestination(for: SourcesRoute.self) { SourcesView(route: $0) }
+                .navigationDestination(for: PlatformsRoute.self) { _ in PlatformsView() }
         }
         .tabItem { Label(title, systemImage: icon) }
     }

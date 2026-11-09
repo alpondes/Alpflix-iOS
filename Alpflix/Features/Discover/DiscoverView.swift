@@ -68,9 +68,7 @@ struct DiscoverView: View {
         .navigationTitle(L.tabDiscover)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    PlatformsView()
-                } label: {
+                NavigationLink(value: PlatformsRoute()) {
                     Label(L.platforms, systemImage: "tv")
                 }
             }
