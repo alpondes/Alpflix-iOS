@@ -1,13 +1,13 @@
 # Alpflix iOS — TestFlight kurulumu (bir kez, ~15 dk)
 
 Her şey GitHub'da: depo herkese açık olduğu için GitHub'ın Mac makineleri ücretsiz. `main`'e her push'ta
-"Derleme denetimi" (derleme + simülatör) ve "TestFlight" (imzalı derleme + yükleme) çalışır. İmza için
-profil/sertifika gerekmez: Apple'ın bulut imzalaması API anahtarıyla kendisi yapar.
+"Derleme denetimi" (derleme + simülatör) ve "TestFlight" (Xcode 26, imzalı derleme + yükleme) çalışır. İmza için
+profil/sertifika gerekmez: dağıtım sertifikası ve App Store profili API anahtarıyla kendiliğinden oluşturulur.
 
 ## 1. App Store Connect API anahtarı (Admin)
 1. https://appstoreconnect.apple.com → **Users and Access** → üstte **Integrations** → solda **App Store Connect API**.
 2. **Team Keys** sekmesi (Individual Keys değil). Anahtar yerine **Request Access** çıkarsa bas, şartları kabul et.
-3. **+** → Name: `Alpflix GitHub` · Access: **Admin** (bulut imzalama için Admin gerekir) → **Generate**.
+3. **+** → Name: `Alpflix GitHub` · Access: **Admin** (sertifika/profil oluşturmak için) → **Generate**.
 4. Aynı sayfada:
    - **Issuer ID**: listenin üstünde (uzun, tireli; yanında Copy).
    - **Key ID**: anahtarın satırında (10 karakter).

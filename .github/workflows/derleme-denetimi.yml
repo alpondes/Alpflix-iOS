@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     if: ${{ !github.event.repository.private }}
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -40,7 +40,7 @@ jobs:
   # Simülatörde açılış denetimi: uygulama açılıyor mu, çökmüyor mu; ekran görüntüleri yükte.
   simulator:
     if: ${{ !github.event.repository.private }}
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5

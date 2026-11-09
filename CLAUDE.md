@@ -19,7 +19,9 @@ Android yedeğini içe aktarma. Hesap ve sunucu yok; veri cihazda tek JSON (`Lib
 - Mac yok; depo herkese açık, GitHub Actions'ın Mac makineleri ücretsiz:
   - `.github/workflows/derleme-denetimi.yml`: XcodeGen → CocoaPods (MobileVLCKit 3.6) → imzasız derleme +
     simülatörde her sekmenin açılışı (ekran görüntüleri günlükte base64).
-  - `.github/workflows/testflight.yml`: imzasız arşiv → `-exportArchive` bulut imzalama (App Store Connect API
-    anahtarı, Admin) → App Store Connect'e yükleme. Secret'lar: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8, TMDB_API_TOKEN.
+  - `.github/workflows/testflight.yml` (macos-26, Xcode 26 — Apple iOS 26 SDK istiyor): codemagic-cli-tools ile
+    dağıtım sertifikası + App Store profili API anahtarından oluşturulur/alınır, imzalı IPA, `app-store-connect publish`.
+    Sertifika özel anahtarı `Config/signing/dist-key.enc` (AES-256, şifre .p8'in SHA-256'sı; fastlane match gibi).
+    Secret'lar: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8, TMDB_API_TOKEN.
 - Kurulum: `KURULUM.md`. Xcode projesi ve Pods depoda yok (`.gitignore`); her derlemede üretilir.
 - Bulut konteynerinde Swift derleyicisi yok; sözdizimi tree-sitter ile, gerisi Actions'ta denetlenir.
