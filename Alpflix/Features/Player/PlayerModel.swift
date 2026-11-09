@@ -42,6 +42,8 @@ final class PlayerModel: ObservableObject {
     private var lastSaveAt = Date.distantPast
     private var watchedRecorded = false
     private var autoSubtitleDone = false
+    /// Zamanın ilerlemediği art arda yoklama sayısı (takılma göstergesi için).
+    private var stallTicks = 0
     private var addedSubtitles: Set<String> = []
 
     init(request: PlayRequest) {
@@ -69,6 +71,8 @@ final class PlayerModel: ObservableObject {
         failed = false
         ended = false
         buffering = true
+        timeMs = 0
+        stallTicks = 0
         watchedRecorded = false
         autoSubtitleDone = false
         addedSubtitles = []
@@ -116,13 +120,20 @@ final class PlayerModel: ObservableObject {
     private func tick() {
         let state = player.state
         playing = player.isPlaying
-        buffering = state == .opening || state == .buffering
+        // VLCKit oynarken de durumu "buffering" bildirebiliyor; gösterge zamanın ilerleyip
+        // ilerlemediğine bakar: başta zaman 0 iken ya da 1 sn'den uzun takılmada görünür.
+        let newTime = Int64(player.time.intValue)
+        let advancing = newTime != timeMs
+        let active = state != .paused && state != .stopped && state != .ended && state != .error
+        if advancing || !active { stallTicks = 0 } else { stallTicks += 1 }
+        let waiting = active && !advancing && (newTime <= 0 || stallTicks >= 2)
+        if waiting != buffering { buffering = waiting }
         if state == .error { failed = true }
         if state == .ended && !ended {
             ended = true
             startCountdown()
         }
-        timeMs = Int64(player.time.intValue)
+        timeMs = newTime
         lengthMs = Int64(player.media?.length.intValue ?? 0)
         refreshTracks()
         autoSelectSubtitle()
