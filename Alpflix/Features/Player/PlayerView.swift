@@ -21,6 +21,8 @@ struct PlayerView: View {
     @EnvironmentObject private var store: LibraryStore
     @StateObject private var model: PlayerModel
     @State private var controls = true
+    /// Açık seçim paneli (ses / altyazı). Açıkken denetimler gizlenmez; panel denetimlerden bağımsızdır.
+    @State private var panel: PlayerPanel?
     @State private var scrubbing = false
     @State private var scrubValue: Double = 0
     @State private var hideTask: Task<Void, Never>?
@@ -99,6 +101,12 @@ struct PlayerView: View {
         .onChange(of: model.ended) { _, ended in
             if ended { controls = true }
         }
+        .sheet(item: $panel, onDismiss: scheduleHide) { kind in
+            TrackPanel(kind: kind, model: model) { panel = nil }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Theme.surface)
+        }
     }
 
     private var overlay: some View {
@@ -142,54 +150,22 @@ struct PlayerView: View {
     }
 
     private var audioMenu: some View {
-        Menu {
-            ForEach(model.audioTracks.filter { $0.id >= 0 }) { track in
-                Button { model.selectAudio(track.id); scheduleHide() } label: {
-                    if track.id == model.currentAudio { Label(track.name, systemImage: "checkmark") } else { Text(track.name) }
-                }
-            }
-        } label: {
+        Button { openPanel(.audio) } label: {
             Image(systemName: "speaker.wave.2").font(.system(size: 20))
         }
         .accessibilityLabel(L.playerAudio)
     }
 
     private var subtitleMenu: some View {
-        Menu {
-            Button { model.selectSubtitle(-1); scheduleHide() } label: {
-                if model.currentSubtitle < 0 { Label(L.playerSubtitlesOff, systemImage: "checkmark") } else { Text(L.playerSubtitlesOff) }
-            }
-            ForEach(model.subtitleTracks.filter { $0.id >= 0 }) { track in
-                Button { model.selectSubtitle(track.id); scheduleHide() } label: {
-                    if track.id == model.currentSubtitle { Label(track.name, systemImage: "checkmark") } else { Text(track.name) }
-                }
-            }
-            if !model.externalSubtitles.isEmpty {
-                Section {
-                    ForEach(Array(model.externalSubtitles.prefix(40).enumerated()), id: \.offset) { _, sub in
-                        Button { model.selectExternal(sub); scheduleHide() } label: {
-                            Text([sub.lang?.uppercaseTr, sub.id].compactMap { $0 }.joined(separator: " · "))
-                        }
-                    }
-                }
-            }
-            // Eklentilerin durumu: altyazı neden gelmedi görülsün.
-            Section(model.request.url.isFileURL ? L.subtitleDownloaded : L.subtitleSources) {
-                if let results = model.subtitleResults {
-                    if results.isEmpty && !model.request.url.isFileURL {
-                        Text(L.subtitleNoAddon)
-                    }
-                    ForEach(results, id: \.self) { result in
-                        Text(result.summary)
-                    }
-                } else {
-                    Text(L.subtitleSearching)
-                }
-            }
-        } label: {
+        Button { openPanel(.subtitles) } label: {
             Image(systemName: "captions.bubble").font(.system(size: 20))
         }
         .accessibilityLabel(L.playerSubtitles)
+    }
+
+    private func openPanel(_ kind: PlayerPanel) {
+        hideTask?.cancel()
+        panel = kind
     }
 
     private var speedMenu: some View {
@@ -279,7 +255,88 @@ struct PlayerView: View {
         hideTask?.cancel()
         hideTask = Task {
             try? await Task.sleep(nanoseconds: 4_000_000_000)
-            if !Task.isCancelled && model.playing && !scrubbing { controls = false }
+            if !Task.isCancelled && model.playing && !scrubbing && panel == nil { controls = false }
         }
+    }
+}
+
+enum PlayerPanel: String, Identifiable {
+    case audio, subtitles
+    var id: String { rawValue }
+}
+
+/// Ses ve altyazı seçimi: kaydırılabilir liste; seçince kapanır. Tercih edilen dildekiler önce.
+struct TrackPanel: View {
+    let kind: PlayerPanel
+    @ObservedObject var model: PlayerModel
+    let close: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                switch kind {
+                case .audio:
+                    ForEach(model.audioTracks.filter { $0.id >= 0 }) { track in
+                        row(track.name, selected: track.id == model.currentAudio) { model.selectAudio(track.id) }
+                    }
+                case .subtitles:
+                    subtitles
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .navigationTitle(kind == .audio ? L.playerAudio : L.playerSubtitles)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button(L.ok, action: close) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var subtitles: some View {
+        Section {
+            row(L.playerSubtitlesOff, selected: model.currentSubtitle < 0) { model.selectSubtitle(-1) }
+            ForEach(model.subtitleTracks.filter { $0.id >= 0 }) { track in
+                row(track.name, selected: track.id == model.currentSubtitle) { model.selectSubtitle(track.id) }
+            }
+        }
+        if !model.externalSubtitles.isEmpty {
+            Section(model.request.url.isFileURL ? L.subtitleDownloaded : L.subtitleSources) {
+                ForEach(Array(model.externalSubtitles.enumerated()), id: \.offset) { _, sub in
+                    row([sub.lang?.uppercaseTr, sub.id].compactMap { $0 }.joined(separator: " · "), selected: false) {
+                        model.selectExternal(sub)
+                    }
+                }
+            }
+        }
+        Section {
+            if let results = model.subtitleResults {
+                if results.isEmpty && !model.request.url.isFileURL {
+                    Text(L.subtitleNoAddon)
+                }
+                ForEach(results, id: \.self) { result in
+                    Text(result.summary)
+                }
+            } else {
+                Text(L.subtitleSearching)
+            }
+        }
+        .font(Theme.body(12))
+        .foregroundStyle(Theme.textSecondary)
+    }
+
+    private func row(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            close()
+        } label: {
+            HStack {
+                Text(title).font(Theme.body(15)).foregroundStyle(Theme.text)
+                Spacer()
+                if selected { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
+            }
+        }
+        .listRowBackground(Theme.surfaceHigh)
     }
 }
