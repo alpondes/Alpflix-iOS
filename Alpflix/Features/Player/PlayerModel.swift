@@ -124,9 +124,9 @@ final class PlayerModel: ObservableObject {
         // ilerlemediğine bakar: başta zaman 0 iken ya da 1 sn'den uzun takılmada görünür.
         let newTime = Int64(player.time.intValue)
         let advancing = newTime != timeMs
-        let active = state != .paused && state != .stopped && state != .ended && state != .error
-        if advancing || !active { stallTicks = 0 } else { stallTicks += 1 }
-        let waiting = active && !advancing && (newTime <= 0 || stallTicks >= 2)
+        let loading = state != .paused && state != .stopped && state != .ended && state != .error
+        if advancing || !loading { stallTicks = 0 } else { stallTicks += 1 }
+        let waiting = loading && !advancing && (newTime <= 0 || stallTicks >= 2)
         if waiting != buffering { buffering = waiting }
         if state == .error { failed = true }
         if state == .ended && !ended {
