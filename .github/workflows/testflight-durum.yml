@@ -1,0 +1,61 @@
+# Elle: App Store Connect'teki son derlemelerin durumu (işleniyor mu, geçersiz mi, şifreleme sorusu, test grupları).
+# İçerik/anahtar günlüğe yazılmaz.
+name: TestFlight durumu
+
+on:
+  workflow_dispatch:
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+    steps:
+      - name: Durum
+        run: |
+          pip install --quiet pyjwt cryptography requests
+          python3 - <<'PY'
+          import os, re, time, jwt, requests
+          raw = os.environ["ASC_KEY_P8"].replace("\\n", "\n").replace("\r", "")
+          body = re.sub(r"-----(BEGIN|END) PRIVATE KEY-----", "", raw)
+          body = "".join(body.split())
+          if not body.startswith("MI"):
+              import base64
+              try:
+                  dec = base64.b64decode(body).decode()
+                  body = "".join(re.sub(r"-----(BEGIN|END) PRIVATE KEY-----", "", dec).split())
+              except Exception:
+                  pass
+          pem = "-----BEGIN PRIVATE KEY-----\n" + "\n".join(body[i:i+64] for i in range(0, len(body), 64)) + "\n-----END PRIVATE KEY-----\n"
+          now = int(time.time())
+          token = jwt.encode({"iss": os.environ["ASC_ISSUER_ID"], "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
+                             pem, algorithm="ES256", headers={"kid": os.environ["ASC_KEY_ID"], "typ": "JWT"})
+          H = {"Authorization": f"Bearer {token}"}
+          api = "https://api.appstoreconnect.apple.com/v1"
+          apps = requests.get(f"{api}/apps", params={"filter[bundleId]": "com.alpflix.ios"}, headers=H).json()
+          if not apps.get("data"):
+              print("Uygulama bulunamadı:", apps.get("errors"))
+              raise SystemExit(1)
+          app = apps["data"][0]
+          print("Uygulama:", app["attributes"]["name"], app["id"])
+          builds = requests.get(f"{api}/builds", params={"filter[app]": app["id"], "sort": "-uploadedDate", "limit": 5,
+                                                         "include": "buildBetaDetail"}, headers=H).json()
+          details = {d["id"]: d["attributes"] for d in builds.get("included", []) if d["type"] == "buildBetaDetails"}
+          if not builds.get("data"):
+              print("Hiç derleme yok (yükleme Apple'a ulaşmamış ya da reddedilmiş).", builds.get("errors"))
+          for b in builds.get("data", []):
+              a = b["attributes"]
+              rel = b.get("relationships", {}).get("buildBetaDetail", {}).get("data") or {}
+              d = details.get(rel.get("id"), {})
+              print(f"- Derleme {a.get('version')}: işlem={a.get('processingState')} süresi_doldu={a.get('expired')} "
+                    f"şifreleme_sorusu={a.get('usesNonExemptEncryption')} yüklenme={a.get('uploadedDate')} "
+                    f"iç_test={d.get('internalBuildState')} dış_test={d.get('externalBuildState')}")
+              groups = requests.get(f"{api}/builds/{b['id']}/betaGroups", headers=H).json()
+              print("  gruplar:", [g["attributes"]["name"] for g in groups.get("data", [])])
+          allg = requests.get(f"{api}/apps/{app['id']}/betaGroups", headers=H).json()
+          for g in allg.get("data", []):
+              ga = g["attributes"]
+              print(f"Grup: {ga.get('name')} iç={ga.get('isInternalGroup')} otomatik_dağıtım={ga.get('hasAccessToAllBuilds')} id={g['id']}")
+          PY
