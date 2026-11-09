@@ -63,7 +63,7 @@ struct PlatformsView: View {
                 top10
                 upcomingSection
                 ForEach(model.rows) { row in
-                    MediaRow(title: L.platformNew(row.provider.providerName), items: row.items)
+                    MediaRow(title: L.platformNew(row.provider.providerName), items: store.visible(row.items))
                 }
                 Text(L.platformsCredit)
                     .font(Theme.body(11))

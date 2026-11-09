@@ -23,6 +23,10 @@ struct PlayerView: View {
     @State private var controls = true
     /// Açık seçim paneli (ses / altyazı). Açıkken denetimler gizlenmez; panel denetimlerden bağımsızdır.
     @State private var panel: PlayerPanel?
+    @GestureState private var holding = false
+    /// Kaydırma göstergesi: (simge, yüzde).
+    @State private var swipeIndicator: (icon: String, percent: Int)?
+    @State private var swipeStart: (value: Double, isVolume: Bool)?
     @State private var scrubbing = false
     @State private var scrubValue: Double = 0
     @State private var hideTask: Task<Void, Never>?
@@ -35,9 +39,54 @@ struct PlayerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             VLCVideoView(player: model.player).ignoresSafeArea()
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture { toggleControls() }
+            GeometryReader { geo in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { toggleControls() }
+                    // Solda yukarı/aşağı: parlaklık; sağda: ses.
+                    .gesture(
+                        DragGesture(minimumDistance: 14)
+                            .onChanged { value in swipe(value, size: geo.size) }
+                            .onEnded { _ in
+                                swipeStart = nil
+                                withAnimation(.easeOut(duration: 0.2)) { swipeIndicator = nil }
+                            }
+                    )
+                    // Basılı tut: 2x.
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 0.45)
+                            .sequenced(before: DragGesture(minimumDistance: 0))
+                            .updating($holding) { value, state, _ in
+                                if case .second(true, _) = value { state = true }
+                            }
+                    )
+            }
+            .ignoresSafeArea()
+            if model.boosting {
+                VStack {
+                    Label(L.playerBoost, systemImage: "forward.fill")
+                        .font(Theme.mono(13).weight(.semibold))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Theme.surface.opacity(0.9), in: Capsule())
+                        .foregroundStyle(Theme.text)
+                    Spacer()
+                }
+                .padding(.top, 24)
+                .allowsHitTesting(false)
+            }
+            if let indicator = swipeIndicator {
+                Label("\(indicator.percent)%", systemImage: indicator.icon)
+                    .font(Theme.mono(16).weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Theme.surface.opacity(0.9), in: Capsule())
+                    .foregroundStyle(Theme.text)
+                    .allowsHitTesting(false)
+            }
+            if !model.playing && !model.buffering && !model.failed && model.countdown == nil && !model.cast.isEmpty && panel == nil {
+                pausedCast
+            }
             if model.buffering && !model.failed {
                 ProgressView().tint(Theme.accent).scaleEffect(1.4)
             }
@@ -101,6 +150,7 @@ struct PlayerView: View {
         .onChange(of: model.ended) { _, ended in
             if ended { controls = true }
         }
+        .onChange(of: holding) { _, on in model.setBoost(on) }
         .sheet(item: $panel, onDismiss: scheduleHide) { kind in
             TrackPanel(kind: kind, model: model) { panel = nil }
                 .presentationDetents([.medium, .large])
@@ -245,6 +295,62 @@ struct PlayerView: View {
         }
     }
 
+    /// Dikey kaydırma: sol yarı parlaklık (ekran), sağ yarı ses (VLC, %200'e kadar).
+    private func swipe(_ value: DragGesture.Value, size: CGSize) {
+        guard abs(value.translation.height) > abs(value.translation.width) else { return }
+        let isVolume = value.startLocation.x > size.width / 2
+        if swipeStart == nil {
+            swipeStart = (isVolume ? Double(model.volume) / 200 : Double(UIScreen.main.brightness), isVolume)
+        }
+        guard let start = swipeStart else { return }
+        let delta = -Double(value.translation.height) / Double(max(size.height, 1)) * 1.2
+        let next = min(1, max(0, start.value + delta))
+        if start.isVolume {
+            model.volume = Int32(next * 200)
+            swipeIndicator = (next == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", Int(next * 200))
+        } else {
+            UIScreen.main.brightness = CGFloat(next)
+            swipeIndicator = ("sun.max.fill", Int(next * 100))
+        }
+    }
+
+    /// Duraklatınca sağda oyuncular ve karakterleri.
+    private var pausedCast: some View {
+        HStack {
+            Spacer()
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L.cast).font(Theme.title(16)).foregroundStyle(Theme.text)
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(model.cast) { person in
+                            HStack(spacing: 10) {
+                                AsyncImage(url: TMDBImage.profile(person.profilePath)) { image in
+                                    image.resizable().aspectRatio(contentMode: .fill)
+                                } placeholder: {
+                                    Theme.surfaceHigh
+                                }
+                                .frame(width: 40, height: 40)
+                                .clipShape(Circle())
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(person.name).font(Theme.body(13).weight(.semibold)).foregroundStyle(Theme.text).lineLimit(1)
+                                    if let role = person.character, !role.isEmpty {
+                                        Text(role).font(Theme.body(11)).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(14)
+            .frame(width: 230)
+            .frame(maxHeight: 300)
+            .background(Theme.surface.opacity(0.88), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.trailing, 24)
+        }
+        .allowsHitTesting(true)
+    }
+
     private func toggleControls() {
         controls.toggle()
         if controls { scheduleHide() }
@@ -295,6 +401,29 @@ struct TrackPanel: View {
 
     @ViewBuilder
     private var subtitles: some View {
+        Section(L.subtitleDelay) {
+            HStack(spacing: 12) {
+                Button { model.setSubtitleDelay(model.subtitleDelayMs - 250) } label: {
+                    Image(systemName: "minus.circle").font(.system(size: 24))
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(L.subtitleEarlier)
+                Text(L.subtitleDelayValue(Double(model.subtitleDelayMs) / 1000))
+                    .font(Theme.mono(15))
+                    .foregroundStyle(Theme.text)
+                    .frame(maxWidth: .infinity)
+                Button { model.setSubtitleDelay(model.subtitleDelayMs + 250) } label: {
+                    Image(systemName: "plus.circle").font(.system(size: 24))
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(L.subtitleLater)
+                if model.subtitleDelayMs != 0 {
+                    Button(L.reset) { model.setSubtitleDelay(0) }.buttonStyle(.borderless)
+                }
+            }
+            .foregroundStyle(Theme.accent)
+            .listRowBackground(Theme.surfaceHigh)
+        }
         Section {
             row(L.playerSubtitlesOff, selected: model.currentSubtitle < 0) { model.selectSubtitle(-1) }
             ForEach(model.subtitleTracks.filter { $0.id >= 0 }) { track in

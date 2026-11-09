@@ -48,6 +48,8 @@ struct DetailView: View {
     @ObservedObject private var downloads = DownloadStore.shared
     @State private var confirmSeason = false
     @State private var notice: String?
+    /// Tarih seçilerek izlendi işaretlenecek: film ya da bölüm(ler).
+    @State private var dating: WatchDateTarget?
 
     var body: some View {
         ScrollView {
@@ -67,6 +69,33 @@ struct DetailView: View {
         .alert(notice ?? "", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
             Button(L.ok, role: .cancel) {}
         }
+        .sheet(item: $dating) { target in
+            WatchDateSheet(title: target.title) { date in
+                apply(target, at: date)
+            }
+            .presentationDetents([.medium])
+        }
+    }
+
+    private func apply(_ target: WatchDateTarget, at date: Date) {
+        guard let d = model.detail else { return }
+        let full = d.ref(ref.type)
+        if target.episodes.isEmpty {
+            store.setWatched(full, watched: true, imdbId: d.imdb, at: date)
+        } else {
+            store.markEpisodes(full, target.episodes, imdbId: d.imdb, at: date)
+            store.refreshSeriesStatus(full, aired: model.aired())
+        }
+    }
+
+    /// Bu bölüme kadar (dahil) yayınlanmış bütün bölümler.
+    private func upTo(_ e: TMDBEpisode) -> [EpisodeRef] {
+        let target = EpisodeRef(season: e.seasonNumber, episode: e.episodeNumber)
+        return model.aired().filter { $0 <= target }
+    }
+
+    private func seasonEpisodes(_ season: Int) -> [EpisodeRef] {
+        model.aired().filter { $0.season == season }
     }
 
     /// Sezonda yayınlanmış ve henüz indirilmemiş bölümler.
@@ -93,6 +122,22 @@ struct DetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(d.displayTitle).font(Theme.title(28)).foregroundStyle(Theme.text)
                 Text(meta(d)).font(Theme.mono(12)).foregroundStyle(Theme.textSecondary)
+                let badges = SeriesBadges.of(d)
+                if ref.type == .tv && !badges.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(badges, id: \.self) { badge in
+                            Text(badge)
+                                .font(Theme.mono(11).weight(.semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Theme.accent.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
+                                .foregroundStyle(Theme.accent)
+                        }
+                    }
+                }
+                if store.isHidden(full) {
+                    Label(L.hiddenNotice, systemImage: "eye.slash").font(Theme.body(13)).foregroundStyle(Theme.textSecondary)
+                }
                 if let tagline = d.tagline, !tagline.isEmpty {
                     Text(tagline).font(Theme.body(15)).italic().foregroundStyle(Theme.textSecondary)
                 }
@@ -187,7 +232,30 @@ struct DetailView: View {
                         .padding(8)
                 }
                 .accessibilityLabel(watched ? L.markUnwatched : L.markWatched)
+                .contextMenu {
+                    Button { dating = WatchDateTarget(title: d.displayTitle, episodes: []) } label: {
+                        Label(L.markWatchedOnDate, systemImage: "calendar")
+                    }
+                }
             }
+            AddToListMenu(ref: full)
+            Menu {
+                Button {
+                    store.setHidden(full, !store.isHidden(full))
+                } label: {
+                    if store.isHidden(full) {
+                        Label(L.unhide, systemImage: "eye")
+                    } else {
+                        Label(L.notInterested, systemImage: "eye.slash")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Theme.text)
+                    .padding(8)
+            }
+            .accessibilityLabel(L.more)
         }
     }
 
@@ -250,6 +318,33 @@ struct DetailView: View {
                 }
                 .padding(.horizontal, Theme.gutter)
             }
+            let seasonAired = seasonEpisodes(model.season)
+            if !seasonAired.isEmpty {
+                let watchedAll = seasonAired.allSatisfy { store.watchedEpisodes(ref.tmdbId).contains($0) }
+                Menu {
+                    if watchedAll {
+                        Button(role: .destructive) { store.unmarkSeason(full, season: model.season) } label: {
+                            Label(L.unmarkSeason, systemImage: "xmark.circle")
+                        }
+                    } else {
+                        Button {
+                            store.markEpisodes(full, seasonAired, imdbId: d.imdb, at: Date())
+                            store.refreshSeriesStatus(full, aired: model.aired())
+                        } label: { Label(L.markSeason, systemImage: "checkmark.circle") }
+                        Button {
+                            dating = WatchDateTarget(title: L.season(model.season), episodes: seasonAired)
+                        } label: { Label(L.markWatchedOnDate, systemImage: "calendar") }
+                    }
+                } label: {
+                    Label(watchedAll ? L.seasonWatched : L.markSeason, systemImage: watchedAll ? "checkmark.circle.fill" : "checkmark.circle")
+                        .font(Theme.body(14).weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Theme.surfaceHigh, in: Capsule())
+                        .foregroundStyle(watchedAll ? Theme.accent : Theme.text)
+                }
+                .padding(.horizontal, Theme.gutter)
+            }
             if let job = downloads.seasonJob {
                 HStack(spacing: 8) {
                     ProgressView().tint(Theme.accent)
@@ -288,6 +383,18 @@ struct DetailView: View {
                             store.refreshSeriesStatus(full, aired: model.aired())
                         }
                     )
+                    .contextMenu {
+                        if e.hasAired {
+                            Button {
+                                store.markEpisodes(full, upTo(e), imdbId: d.imdb, at: Date())
+                                store.refreshSeriesStatus(full, aired: model.aired())
+                            } label: { Label(L.markUpTo, systemImage: "checkmark.circle.badge.questionmark") }
+                            Button {
+                                dating = WatchDateTarget(title: episodeCode(e.seasonNumber, e.episodeNumber),
+                                                         episodes: [EpisodeRef(season: e.seasonNumber, episode: e.episodeNumber)])
+                            } label: { Label(L.markWatchedOnDate, systemImage: "calendar") }
+                        }
+                    }
                 }
             }
             .padding(.horizontal, Theme.gutter)
@@ -296,13 +403,19 @@ struct DetailView: View {
 
     @ViewBuilder
     private func cast(_ d: TMDBDetail) -> some View {
-        let people = Array((d.credits?.cast ?? []).prefix(15))
+        // Yönetmenler önce (takip için kişi sayfası), sonra oyuncular.
+        let directors = (d.credits?.crew ?? []).filter { $0.job == "Director" }.prefix(2).map {
+            TMDBCastMember(id: $0.id, name: $0.name, character: L.departmentDirecting, profilePath: $0.profilePath)
+        }
+        let actors = (d.credits?.cast ?? []).filter { a in !directors.contains { $0.id == a.id } }
+        let people = Array((directors + actors).prefix(16))
         if !people.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 SectionTitle(text: L.cast)
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 12) {
                         ForEach(people) { person in
+                            NavigationLink(value: PersonRoute(id: person.id)) {
                             VStack(spacing: 6) {
                                 AsyncImage(url: TMDBImage.profile(person.profilePath)) { image in
                                     image.resizable().aspectRatio(contentMode: .fill)
@@ -317,6 +430,8 @@ struct DetailView: View {
                                 }
                             }
                             .frame(width: 88)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
@@ -372,5 +487,74 @@ struct EpisodeRow: View {
             .buttonStyle(.plain)
             .accessibilityLabel(watched ? L.markUnwatched : L.markWatched)
         }
+    }
+}
+
+struct WatchDateTarget: Identifiable {
+    let title: String
+    /// Boşsa film.
+    let episodes: [EpisodeRef]
+    var id: String { title + episodes.map { "\($0.season)x\($0.episode)" }.joined() }
+}
+
+/// İzleme tarihi seçimi (bugün ya da geçmiş bir gün).
+struct WatchDateSheet: View {
+    let title: String
+    let onSave: (Date) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var date = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                DatePicker(L.watchDate, selection: $date, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
+                    .datePickerStyle(.graphical)
+                    .tint(Theme.accent)
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background.ignoresSafeArea())
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button(L.cancel) { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L.save) {
+                        onSave(date)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+/// Dizi durumu rozetleri: iptal edildi, final yaptı, yeni sezon (45 gün içinde başladı ya da yakında başlıyor).
+enum SeriesBadges {
+    static func of(_ d: TMDBDetail, now: Date = Date()) -> [String] {
+        var badges: [String] = []
+        switch d.status {
+        case "Canceled": badges.append(L.badgeCanceled)
+        case "Ended": badges.append(L.badgeEnded)
+        default: break
+        }
+        if let next = d.nextEpisodeToAir, next.episodeNumber == 1, let date = dateOf(next.airDate) {
+            badges.append(L.badgeSeasonSoon(next.seasonNumber, shortDate(date)))
+        } else if let last = d.lastEpisodeToAir, let premiere = d.seasons?.first(where: { $0.seasonNumber == last.seasonNumber }),
+                  last.seasonNumber > 1, let start = dateOf(premiere.airDate),
+                  now.timeIntervalSince(start) < 45 * 86400, now >= start {
+            badges.append(L.badgeNewSeason(last.seasonNumber))
+        }
+        if let next = d.nextEpisodeToAir, next.episodeNumber > 1, let date = dateOf(next.airDate) {
+            badges.append(L.badgeNextEpisode(shortDate(date)))
+        }
+        return badges
+    }
+
+    static func shortDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "tr_TR")
+        f.dateFormat = "d MMMM"
+        return f.string(from: date)
     }
 }

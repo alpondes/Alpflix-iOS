@@ -83,6 +83,14 @@ struct TMDBCastMember: Decodable, Hashable, Identifiable {
 
 struct TMDBCredits: Decodable {
     let cast: [TMDBCastMember]?
+    var crew: [TMDBCrewMember]? = nil
+}
+
+struct TMDBCrewMember: Decodable, Hashable {
+    let id: Int
+    let name: String
+    let job: String?
+    let profilePath: String?
 }
 
 struct TMDBExternalIds: Decodable {
@@ -212,5 +220,52 @@ enum TMDBImage {
     private static func url(_ path: String?, _ size: String) -> URL? {
         guard let path, !path.isEmpty else { return nil }
         return URL(string: "https://image.tmdb.org/t/p/\(size)\(path)")
+    }
+}
+
+struct TMDBPerson: Decodable {
+    let id: Int
+    let name: String
+    let biography: String?
+    let birthday: String?
+    let deathday: String?
+    let placeOfBirth: String?
+    let profilePath: String?
+    let knownForDepartment: String?
+    let combinedCredits: TMDBCombinedCredits?
+}
+
+struct TMDBCombinedCredits: Decodable {
+    let cast: [TMDBPersonCredit]?
+    let crew: [TMDBPersonCredit]?
+}
+
+/// Kişinin yer aldığı yapım (oyuncu ya da ekip).
+struct TMDBPersonCredit: Decodable, Hashable {
+    let id: Int
+    let mediaType: String?
+    let title: String?
+    let name: String?
+    let posterPath: String?
+    let backdropPath: String?
+    let releaseDate: String?
+    let firstAirDate: String?
+    let character: String?
+    let job: String?
+    let popularity: Double?
+    let episodeCount: Int?
+
+    var date: String? { [releaseDate, firstAirDate].compactMap { $0 }.first { !$0.isEmpty } }
+
+    var ref: MediaRef? {
+        let type: MediaType
+        switch mediaType {
+        case "movie": type = .movie
+        case "tv": type = .tv
+        default: return nil
+        }
+        let label = (type == .movie ? (title ?? name) : (name ?? title)) ?? ""
+        guard !label.isEmpty else { return nil }
+        return MediaRef(tmdbId: id, type: type, title: label, posterPath: posterPath, backdropPath: backdropPath, year: yearOf(date))
     }
 }

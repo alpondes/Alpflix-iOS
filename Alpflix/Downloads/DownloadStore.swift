@@ -261,7 +261,11 @@ final class DownloadStore: ObservableObject {
     private func fetchSubtitles(_ item: DownloadItem, filename: String?, addons: [InstalledAddon]) async {
         let preferred = UserDefaults.standard.string(forKey: SettingsKeys.subtitleLanguage) ?? "tr"
         let id = AddonClient.stremioId(imdb: item.imdbId, season: item.season, episode: item.episode)
-        let all = await AddonClient.allSubtitles(addons, type: item.ref.type.addonType, id: id, filename: filename).flatMap(\.items)
+        var results = await AddonClient.allSubtitles(addons, type: item.ref.type.addonType, id: id, filename: filename)
+        if let wyzie = await WyzieClient.search(imdb: item.imdbId, season: item.season, episode: item.episode, preferred: preferred) {
+            results.append(wyzie)
+        }
+        let all = results.flatMap(\.items)
         var chosen: [AddonSubtitle] = []
         for language in [preferred, "en"] where language != "none" {
             let taken = chosen

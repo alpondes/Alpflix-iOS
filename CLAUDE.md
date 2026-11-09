@@ -3,7 +3,11 @@
 Alpflix'in (Android, `alpondes/Alpflix`) iPhone sürümü: SwiftUI, iOS 17+, kişisel kullanım, TestFlight.
 İlk sürüm: keşfet, arama, yapım sayfası (sezon/bölüm, izlendi), Stremio eklentileriyle kaynaklar,
 VLC oynatıcı (ses/altyazı/hız, kaldığın yer, sıradaki bölüm), kütüphane durumları, izlemeye devam et, indirme (arka planda, yalnız Wi-Fi; sezonu indir),
-Android yedeğini içe aktarma. Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
+Android yedeğini içe aktarma. 0.6: listeler ve akıllı listeler, tarihli izleme / buraya kadar / sezonu izledim,
+İlgilenmiyorum, dizi rozetleri, kişi sayfası ve takip, ana sayfa düzeni (Türkiye ve mevsim satırları), takvim ve
+yeni bölüm bildirimi, istatistikler, oynatıcıda altyazı gecikmesi/görünümü, basılı tut 2x, parlaklık/ses kaydırma,
+duraklatınca oyuncular, Wyzie Subs, bir kerelik Trakt içe aktarma (kullanıcı adı + Client ID ya da ZIP).
+Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)
 - Puanlama yok. Yapay zekâ özelliği yok. Analitik/reklam yok. Trakt yok. Doğrudan debrid API yok.

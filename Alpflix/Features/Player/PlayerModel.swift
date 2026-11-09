@@ -34,6 +34,12 @@ final class PlayerModel: ObservableObject {
     @Published var skip: SkipSegment?
     /// Bölüm bitti, sıradaki bölüme geri sayım (sn).
     @Published var countdown: Int?
+    /// Altyazı gecikmesi (ms; pozitif: altyazı geç gelir).
+    @Published private(set) var subtitleDelayMs: Int = 0
+    /// Basılı tutunca geçici 2x.
+    @Published private(set) var boosting = false
+    /// Duraklatınca gösterilen oyuncular (bölümde önce konuklar).
+    @Published var cast: [TMDBCastMember] = []
 
     private var segments: [SkipSegment] = []
     private var dismissedSkips: Set<SkipKind> = []
@@ -88,6 +94,9 @@ final class PlayerModel: ObservableObject {
         skip = nil
         countdownTask?.cancel()
         countdown = nil
+        subtitleDelayMs = 0
+        cast = []
+        applySubtitleStyle()
         let media = VLCMedia(url: request.url)
         media.addOption(":network-caching=3000")
         if request.startMs > 0 { media.addOption(":start-time=\(request.startMs / 1000)") }
@@ -99,6 +108,7 @@ final class PlayerModel: ObservableObject {
     /// Eklenti altyazıları ve (dizide) sıradaki bölüm.
     private func loadExtras(_ request: PlayRequest) async {
         guard let store else { return }
+        Task { await loadCast(request) }
         let preferred = UserDefaults.standard.string(forKey: SettingsKeys.subtitleLanguage) ?? "tr"
         if request.url.isFileURL {
             // İndirilen yapım: altyazılar cihazda.
@@ -106,7 +116,11 @@ final class PlayerModel: ObservableObject {
             subtitleResults = []
         } else {
             let id = AddonClient.stremioId(imdb: request.imdbId, season: request.season, episode: request.episode)
-            let results = await AddonClient.allSubtitles(store.addons, type: request.ref.type.addonType, id: id, filename: request.filename)
+            async let addonResults = AddonClient.allSubtitles(store.addons, type: request.ref.type.addonType, id: id, filename: request.filename)
+            async let wyzie = WyzieClient.search(imdb: request.imdbId, season: request.season, episode: request.episode, preferred: preferred)
+            var results = await addonResults
+            let extra = await wyzie
+            if let extra { results.append(extra) }
             guard self.request == request else { return }
             subtitleResults = results
             let subs = results.flatMap(\.items)
@@ -238,6 +252,50 @@ final class PlayerModel: ObservableObject {
     }
 
     func selectAudio(_ id: Int32) { player.currentAudioTrackIndex = id }
+
+    func setSubtitleDelay(_ ms: Int) {
+        subtitleDelayMs = max(-10_000, min(10_000, ms))
+        player.currentVideoSubTitleDelay = subtitleDelayMs * 1000
+    }
+
+    func setBoost(_ on: Bool) {
+        guard on != boosting else { return }
+        boosting = on
+        player.rate = on ? max(2, rate) : rate
+    }
+
+    /// VLC ses düzeyi (0–200; 100 üstü yükseltme).
+    var volume: Int32 {
+        get { player.audio?.volume ?? 100 }
+        set { player.audio?.volume = max(0, min(200, newValue)) }
+    }
+
+    /// Ayarlar'daki altyazı boyutu, rengi ve kalınlığı (VLC metin çizicisi; oynatma başlamadan).
+    private func applySubtitleStyle() {
+        let defaults = UserDefaults.standard
+        let size = defaults.object(forKey: SettingsKeys.subtitleSize) as? Int ?? SubtitleStyle.defaultSize
+        let color = defaults.object(forKey: SettingsKeys.subtitleColor) as? Int ?? SubtitleStyle.defaultColor
+        let bold = defaults.bool(forKey: SettingsKeys.subtitleBold)
+        perform("setTextRendererFontSize:", NSNumber(value: size))
+        perform("setTextRendererFontColor:", NSNumber(value: color))
+        perform("setTextRendererFontForceBold:", NSNumber(value: bold))
+    }
+
+    private func perform(_ name: String, _ value: NSNumber) {
+        let selector = NSSelectorFromString(name)
+        if player.responds(to: selector) { _ = player.perform(selector, with: value) }
+    }
+
+    private func loadCast(_ request: PlayRequest) async {
+        let found: [TMDBCastMember]
+        if let s = request.season, let e = request.episode {
+            found = (try? await TMDBClient.shared.episodeCast(request.ref.tmdbId, season: s, episode: e)) ?? []
+        } else {
+            found = (try? await TMDBClient.shared.detail(request.ref.type, request.ref.tmdbId).credits?.cast) ?? []
+        }
+        guard self.request == request else { return }
+        cast = Array(found.prefix(12))
+    }
 
     func selectSubtitle(_ id: Int32) {
         autoSubtitleDone = true

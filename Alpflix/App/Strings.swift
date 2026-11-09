@@ -185,6 +185,176 @@ enum L {
     }
     static let downloadSeasonNothing = "Bu sezonda indirilecek yeni bölüm yok."
 
+    // Genel
+    static let save = "Kaydet"
+    static let reset = "Sıfırla"
+    static let more = "Diğer"
+    static let watched = "İzlendi"
+
+    // Listeler
+    static let lists = "Listeler"
+    static let listsEmpty = "Henüz liste yok. Sağ üstteki + ile kendi listeni ya da kurala göre dolan akıllı liste oluştur."
+    static let listNew = "Yeni liste"
+    static let listNewSmart = "Yeni akıllı liste"
+    static let listEdit = "Listeyi düzenle"
+    static let listAdd = "Listeye ekle"
+    static let listName = "Liste adı"
+    static let listSmart = "Akıllı liste"
+    static func listCount(_ n: Int) -> String { "\(n) yapım" }
+    static let listRemoveItem = "Listeden çıkar"
+    static let listManualEmpty = "Liste boş. Yapım sayfasındaki liste simgesiyle ekleyebilirsin."
+    static let listSmartEmpty = "Kurala uyan yapım bulunamadı."
+    static let listRule = "Kural"
+    static let listType = "Tür"
+    static let listSort = "Sıralama"
+    static let listLanguage = "Özgün dil"
+    static let listYearFrom = "Yıldan"
+    static let listYearTo = "Yıla"
+    static let listMinVoteToggle = "En düşük TMDB ortalaması"
+    static func listMinVote(_ v: Double) -> String { String(format: "TMDB ortalaması ≥ %.1f", v) }
+    static let listHideKnown = "İzlediklerimi ve kütüphanemdekileri gösterme"
+    static let sortPopular = "Popüler"
+    static let sortNewest = "En yeni"
+    static let sortTopVoted = "TMDB ortalaması yüksek"
+    static let languageAny = "Hepsi"
+    static let languageKorean = "Korece"
+    static let languageJapanese = "Japonca"
+    static let languageSpanish = "İspanyolca"
+    static let languageFrench = "Fransızca"
+    static let languageGerman = "Almanca"
+
+    // İzleme işaretleri ve gizleme
+    static let markWatchedOnDate = "Tarih seçerek izlendi işaretle"
+    static let markUpTo = "Buraya kadar izledim"
+    static let markSeason = "Sezonu izledim"
+    static let seasonWatched = "Sezon izlendi"
+    static let unmarkSeason = "Sezonun izlemelerini kaldır"
+    static let watchDate = "İzleme tarihi"
+    static let notInterested = "İlgilenmiyorum"
+    static let unhide = "Yeniden göster"
+    static let hiddenNotice = "İlgilenmiyorum dedin: satırlarda ve listelerde görünmüyor."
+    static let hiddenTitle = "Gizlenenler"
+    static let hiddenEmpty = "Gizlenen yapım yok."
+
+    // Dizi rozetleri
+    static let badgeCanceled = "İptal edildi"
+    static let badgeEnded = "Final yaptı"
+    static func badgeNewSeason(_ n: Int) -> String { "Yeni sezon: \(n). sezon" }
+    static func badgeSeasonSoon(_ n: Int, _ date: String) -> String { "\(n). sezon \(date)" }
+    static func badgeNextEpisode(_ date: String) -> String { "Sıradaki bölüm \(date)" }
+
+    // Kişiler
+    static let follow = "Takip et"
+    static let following = "Takip ediliyor"
+    static let unfollow = "Takibi bırak"
+    static let followingTitle = "Takip ettiklerim"
+    static let followingEmpty = "Takip ettiğin kimse yok. Oyuncu ya da yönetmen sayfasında Takip et'e dokun."
+    static let filmography = "Filmografi"
+    static func filmographyProgress(_ watched: Int, _ total: Int) -> String {
+        "Filmografi: %\(total > 0 ? watched * 100 / total : 0) izlendi (\(watched) / \(total))"
+    }
+    static func personAge(_ born: Int, _ age: Int) -> String { "\(born) doğumlu · \(age) yaşında" }
+    static func personLived(_ born: Int, _ died: Int) -> String { "\(born) – \(died)" }
+    static let departmentActing = "Oyuncu"
+    static let departmentDirecting = "Yönetmen"
+
+    // Ana sayfa
+    static let homeLayout = "Ana sayfa düzeni"
+    static let homeLayoutHint = "Satırları sürükleyerek sırala; kapattıkların ana sayfada görünmez."
+    static let homeLayoutReset = "Varsayılan düzene dön"
+    static let homeSeasonal = "Mevsimlik satır"
+    static let homeTurkeyPlatforms = "Türkiye'de platformlarda popüler"
+    static let homeTurkishSeries = "Popüler Türk dizileri"
+    static let homeTurkishMovies = "Popüler Türk filmleri"
+    static let homeFollowing = "Takip ettiklerinin yeni yapımları"
+    static let seasonalNewYear = "Yılbaşı filmleri"
+    static let seasonalHalloween = "Cadılar Bayramı'na korku"
+    static let seasonalValentine = "Sevgililer Günü'ne romantik filmler"
+    static let seasonalSummer = "Yaz filmleri"
+
+    // Takvim
+    static let calendar = "Takvim"
+    static let calendarEmpty = "Önümüzdeki 60 günde izlediğin dizilerde yeni bölüm yok."
+    static let calendarLoading = "Bölümler yükleniyor…"
+    static let episodeAlertsToggle = "Yeni bölüm bildirimi"
+    static let episodeAlertsHint = "İzlediğin, izleyeceğin ve bitirdiğin dizilerde bölüm çıktığı gün saat 10'da bildirim."
+    static func episodeAlert(_ code: String, _ name: String?) -> String {
+        ["\(code) bugün yayında", name].compactMap { $0 }.joined(separator: " · ")
+    }
+    static let dayToday = "Bugün"
+    static let dayTomorrow = "Yarın"
+    static let dayYesterday = "Dün"
+
+    // İstatistik
+    static let stats = "İstatistikler"
+    static let statsMonth = "Bu ay"
+    static let statsYear = "Bu yıl"
+    static let statsAll = "Tümü"
+    static let statsTotalTime = "İzleme süresi"
+    static let statsMovies = "Film"
+    static let statsEpisodesTitle = "Bölüm"
+    static let statsSeries = "Dizi"
+    static let statsHours = "Saat"
+    static let statsHoursAxis = "Saat"
+    static let statsGenres = "Türler"
+    static let statsTopSeries = "En çok izlenen diziler"
+    static func statsEpisodes(_ n: Int) -> String { "\(n) bölüm" }
+    static func statsHoursValue(_ h: Int) -> String { "\(h) sa" }
+    static func statsMinutesValue(_ m: Int) -> String { "\(m) dk" }
+    static func statsBusiestDay(_ day: String, _ time: String) -> String { "En yoğun gün: \(day) · \(time)" }
+    static let statsEmpty = "Bu dönemde izleme kaydı yok."
+    static let statsFilling = "Yapım süreleri TMDB'den tamamlanıyor…"
+
+    // Oynatıcı ve altyazı görünümü
+    static let playerBoost = "2x"
+    static let subtitleDelay = "Altyazı gecikmesi"
+    static func subtitleDelayValue(_ seconds: Double) -> String {
+        seconds == 0 ? "0 sn" : String(format: "%@%.2f sn", seconds > 0 ? "+" : "", seconds).replacingOccurrences(of: ".", with: ",")
+    }
+    static let subtitleEarlier = "Altyazıyı öne al"
+    static let subtitleLater = "Altyazıyı geciktir"
+    static let subtitleSize = "Altyazı boyutu"
+    static let subtitleColor = "Altyazı rengi"
+    static let subtitleBold = "Kalın altyazı"
+    static let sizeSmall = "Küçük"
+    static let sizeNormal = "Normal"
+    static let sizeLarge = "Büyük"
+    static let sizeHuge = "Çok büyük"
+    static let colorCream = "Krem"
+    static let colorYellow = "Sarı"
+    static let colorGray = "Açık gri"
+    static let wyzieTitle = "Ek altyazı kaynağı: Wyzie Subs"
+    static let wyzieKey = "Wyzie anahtarı"
+    static let wyzieHint = "sub.wyzie.io'dan ücretsiz anahtar al; girilirse OpenSubtitles, SubDL ve Podnapisi altyazıları eklentilere ek olarak listelenir. Anahtar yalnız bu cihazda tutulur."
+
+    // Trakt
+    static let traktImport = "Trakt'tan içe aktar"
+    static let traktByUser = "Kullanıcı adıyla (doğrudan)"
+    static let traktUser = "Trakt kullanıcı adı"
+    static let traktClientId = "Trakt Client ID"
+    static let traktImportButton = "İçe aktar"
+    static let traktByUserHint = "Profilin herkese açık olmalı. Client ID için trakt.tv/oauth/applications/new adresinde bir uygulama oluştur (ad: Alpflix, Redirect URI: urn:ietf:wg:oauth:2.0:oob), çıkan Client ID'yi buraya yapıştır. Bir kerelik okunur; Trakt'a hiçbir şey yazılmaz."
+    static let traktByFile = "Dosyadan"
+    static let traktPickFile = "ZIP ya da JSON seç"
+    static let traktByFileHint = "Trakt > Settings > Data > Export ile indirdiğin ZIP dosyası (ya da içindeki JSON'lar). Puan dosyaları okunmaz."
+    static func traktFetchingHistory(_ page: Int, _ total: Int) -> String { "İzleme geçmişi alınıyor (sayfa \(page)/\(max(page, total)))" }
+    static let traktFetchingWatched = "İzlenenler alınıyor…"
+    static let traktFetchingWatchlist = "İzleme listesi alınıyor…"
+    static let traktFetchingLists = "Listeler alınıyor…"
+    static func traktMatching(_ done: Int, _ total: Int) -> String { "TMDB ile eşleştiriliyor: \(done)/\(total)" }
+    static func traktStatuses(_ done: Int, _ total: Int) -> String { "Dizi durumları hesaplanıyor: \(done)/\(total)" }
+    static let traktNothing = "İçe aktarılacak kayıt bulunamadı."
+    static func traktDone(_ events: Int, _ titles: Int, _ lists: Int, _ unmatched: Int, _ ratings: Int) -> String {
+        var parts = ["Aktarıldı: \(events) izleme kaydı, \(titles) yeni yapım, \(lists) liste."]
+        if unmatched > 0 { parts.append("\(unmatched) yapım TMDB'de eşleşmedi.") }
+        if ratings > 0 { parts.append("\(ratings) puan okunmadı (uygulamada puan yok).") }
+        return parts.joined(separator: " ")
+    }
+    static let traktErrorNotFound = "Bu kullanıcı adı Trakt'ta bulunamadı."
+    static let traktErrorPrivate = "Profil gizli. Trakt'ta profilini herkese açık yap ya da dışa aktarım dosyasını kullan."
+    static let traktErrorKey = "Client ID kabul edilmedi. Trakt uygulamasındaki Client ID'yi kontrol et."
+    static let traktErrorNetwork = "Trakt'a bağlanılamadı."
+
     static let errorNoToken = "TMDB anahtarı yok. Ayarlar'dan gir."
     static let errorNetwork = "Bağlantı kurulamadı."
     static let retry = "Yeniden dene"

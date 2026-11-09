@@ -160,6 +160,84 @@ actor TMDBClient {
         return entries.sorted { $0.date < $1.date }
     }
 
+    // MARK: Akıllı liste, Türkiye ve mevsim satırları
+
+    func smart(_ rule: SmartRule, page: Int) async throws -> TMDBPage<TMDBItem> {
+        let dateKey = rule.type == .movie ? "primary_release_date" : "first_air_date"
+        var query = ["page": "\(page)", "include_adult": "false", "vote_count.gte": rule.sort == .topVoted ? "200" : "20"]
+        query["sort_by"] = rule.type == .tv && rule.sort == .newest ? "first_air_date.desc" : rule.sort.tmdb
+        if !rule.genres.isEmpty { query["with_genres"] = rule.genres.map(String.init).joined(separator: ",") }
+        if let from = rule.yearFrom { query["\(dateKey).gte"] = "\(from)-01-01" }
+        if let to = rule.yearTo { query["\(dateKey).lte"] = "\(to)-12-31" }
+        if rule.sort == .newest && rule.yearTo == nil { query["\(dateKey).lte"] = isoDay(Date()) }
+        if let vote = rule.minVote { query["vote_average.gte"] = String(format: "%.1f", vote) }
+        if let language = rule.language, !language.isEmpty { query["with_original_language"] = language }
+        return try await get("discover/\(rule.type.rawValue)", query)
+    }
+
+    /// Türkiye'de abonelik platformlarında popüler (film ve dizi karışık).
+    func turkeyPlatformsPopular() async throws -> [MediaRef] {
+        let base = ["watch_region": region, "with_watch_monetization_types": "flatrate", "sort_by": "popularity.desc", "include_adult": "false"]
+        async let movies: TMDBPage<TMDBItem> = get("discover/movie", base)
+        async let series: TMDBPage<TMDBItem> = get("discover/tv", base)
+        let m = try await movies.results.compactMap { $0.ref(fallback: .movie) }
+        let t = try await series.results.compactMap { $0.ref(fallback: .tv) }
+        var merged: [MediaRef] = []
+        for i in 0..<max(m.count, t.count) {
+            if i < t.count { merged.append(t[i]) }
+            if i < m.count { merged.append(m[i]) }
+        }
+        return merged
+    }
+
+    /// Türk yapımları (özgün dil Türkçe), popülerliğe göre.
+    func turkish(_ type: MediaType) async throws -> [MediaRef] {
+        var query = ["with_original_language": "tr", "sort_by": "popularity.desc", "include_adult": "false"]
+        let dateKey = type == .movie ? "primary_release_date" : "first_air_date"
+        query["\(dateKey).gte"] = "\(Calendar.current.component(.year, from: Date()) - 3)-01-01"
+        let page: TMDBPage<TMDBItem> = try await get("discover/\(type.rawValue)", query)
+        return page.results.compactMap { $0.ref(fallback: type) }
+    }
+
+    /// Anahtar kelimeyle filmler (mevsim satırı); kelimenin kimliği TMDB'de aranır.
+    func keywordMovies(_ keyword: String) async throws -> [MediaRef] {
+        struct Keyword: Decodable { let id: Int; let name: String }
+        let found: TMDBPage<Keyword> = try await get("search/keyword", ["query": keyword])
+        guard let id = (found.results.first { $0.name.lowercased() == keyword } ?? found.results.first)?.id else { return [] }
+        let page: TMDBPage<TMDBItem> = try await get("discover/movie", [
+            "with_keywords": "\(id)", "sort_by": "popularity.desc", "vote_count.gte": "100", "include_adult": "false",
+        ])
+        return page.results.compactMap { $0.ref(fallback: .movie) }
+    }
+
+    func genreMovies(_ genre: Int) async throws -> [MediaRef] {
+        let page: TMDBPage<TMDBItem> = try await get("discover/movie", [
+            "with_genres": "\(genre)", "sort_by": "popularity.desc", "vote_count.gte": "300", "include_adult": "false",
+        ])
+        return page.results.compactMap { $0.ref(fallback: .movie) }
+    }
+
+    // MARK: Kişi
+
+    func person(_ id: Int) async throws -> TMDBPerson {
+        try await get("person/\(id)", ["append_to_response": "combined_credits"])
+    }
+
+    /// Bölümün oyuncuları: önce konuklar, sonra dizinin oyuncuları.
+    func episodeCast(_ tvId: Int, season: Int, episode: Int) async throws -> [TMDBCastMember] {
+        struct Episode: Decodable { let guestStars: [TMDBCastMember]?; let credits: TMDBCredits? }
+        let e: Episode = try await get("tv/\(tvId)/season/\(season)/episode/\(episode)", ["append_to_response": "credits"])
+        var seen = Set<Int>()
+        return ((e.guestStars ?? []) + (e.credits?.cast ?? [])).filter { seen.insert($0.id).inserted }
+    }
+
+    /// IMDb kimliğinden TMDB yapımı (içe aktarma).
+    func find(imdb: String) async throws -> MediaRef? {
+        struct Found: Decodable { let movieResults: [TMDBItem]; let tvResults: [TMDBItem] }
+        let found: Found = try await get("find/\(imdb)", ["external_source": "imdb_id"])
+        return found.movieResults.first?.ref(fallback: .movie) ?? found.tvResults.first?.ref(fallback: .tv)
+    }
+
     // MARK: Ayrıntı
 
     func detail(_ type: MediaType, _ id: Int, fresh: Bool = false) async throws -> TMDBDetail {
@@ -209,4 +287,11 @@ enum SettingsKeys {
     static let tmdbToken = "tmdb_token"
     static let subtitleLanguage = "subtitle_language"
     static let autoPlayNext = "auto_play_next"
+    static let episodeAlerts = "episode_alerts"
+    static let wyzieKey = "local_wyzie_key"
+    static let subtitleSize = "subtitle_size"
+    static let subtitleColor = "subtitle_color"
+    static let subtitleBold = "subtitle_bold"
+    static let traktClientId = "local_trakt_client_id"
+    static let traktUser = "trakt_user"
 }

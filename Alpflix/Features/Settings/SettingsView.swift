@@ -6,6 +6,10 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.tmdbToken) private var savedToken = ""
     @AppStorage(SettingsKeys.subtitleLanguage) private var subtitleLanguage = "tr"
     @AppStorage(SettingsKeys.autoPlayNext) private var autoPlayNext = true
+    @AppStorage(SettingsKeys.subtitleSize) private var subtitleSize = SubtitleStyle.defaultSize
+    @AppStorage(SettingsKeys.subtitleColor) private var subtitleColor = SubtitleStyle.defaultColor
+    @AppStorage(SettingsKeys.subtitleBold) private var subtitleBold = false
+    @AppStorage(SettingsKeys.wyzieKey) private var wyzieKey = ""
     @State private var tokenDraft = ""
     @State private var addonUrl = ""
     @State private var adding = false
@@ -31,6 +35,8 @@ struct SettingsView: View {
         Form {
             Section {
                 NavigationLink { ProfilesView() } label: { Label(L.profiles, systemImage: "person.2") }
+                NavigationLink(value: LibraryRoute.homeLayout) { Label(L.homeLayout, systemImage: "rectangle.grid.1x2") }
+                NavigationLink(value: LibraryRoute.traktImport) { Label(L.traktImport, systemImage: "square.and.arrow.down") }
             }
             Section(L.settingsAddons) {
                 ForEach(store.addons) { addon in
@@ -79,6 +85,23 @@ struct SettingsView: View {
                     Text(L.playerSubtitlesOff).tag("none")
                 }
                 Toggle(L.autoPlayNext, isOn: $autoPlayNext).tint(Theme.accent)
+                Picker(L.subtitleSize, selection: $subtitleSize) {
+                    ForEach(SubtitleStyle.sizes, id: \.value) { Text($0.label).tag($0.value) }
+                }
+                Picker(L.subtitleColor, selection: $subtitleColor) {
+                    ForEach(SubtitleStyle.colors, id: \.value) { Text($0.label).tag($0.value) }
+                }
+                Toggle(L.subtitleBold, isOn: $subtitleBold).tint(Theme.accent)
+            }
+
+            Section {
+                SecureField(L.wyzieKey, text: $wyzieKey)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            } header: {
+                Text(L.wyzieTitle)
+            } footer: {
+                Text(L.wyzieHint)
             }
 
             Section {

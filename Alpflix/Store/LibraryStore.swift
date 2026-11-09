@@ -115,10 +115,10 @@ final class LibraryStore: ObservableObject {
     }
 
     /// Film ya da bölüm izlendi / izlenmedi. Bölüm izlenince "İzleyeceğim" / "Beklemede" dizi "İzliyorum" olur.
-    func setWatched(_ ref: MediaRef, season: Int? = nil, episode: Int? = nil, watched: Bool, imdbId: String? = nil) {
+    func setWatched(_ ref: MediaRef, season: Int? = nil, episode: Int? = nil, watched: Bool, imdbId: String? = nil, at: Date = Date()) {
         mutate { d in
             if watched {
-                d.events.append(WatchEvent(tmdbId: ref.tmdbId, type: ref.type, season: season, episode: episode, watchedAt: Date()))
+                d.events.append(WatchEvent(tmdbId: ref.tmdbId, type: ref.type, season: season, episode: episode, watchedAt: at))
                 d.progress[PlaybackProgress.key(ref.tmdbId, ref.type, season, episode)] = nil
                 var entry = d.titles[ref.id] ?? TrackedTitle(ref: ref, imdbId: imdbId, status: nil, addedAt: Date())
                 if ref.type == .movie {
@@ -132,6 +132,28 @@ final class LibraryStore: ObservableObject {
                 d.events.removeAll { $0.tmdbId == ref.tmdbId && $0.type == ref.type && $0.season == season && $0.episode == episode }
             }
         }
+    }
+
+    /// Birden çok bölüm birden izlendi ("Buraya kadar izledim", "Sezonu izledim"): izlenmemiş olanlar eklenir.
+    func markEpisodes(_ ref: MediaRef, _ episodes: [EpisodeRef], imdbId: String?, at: Date) {
+        let watched = watchedEpisodes(ref.tmdbId)
+        let missing = episodes.filter { !watched.contains($0) }
+        guard !missing.isEmpty else { return }
+        mutate { d in
+            for e in missing {
+                d.events.append(WatchEvent(tmdbId: ref.tmdbId, type: .tv, season: e.season, episode: e.episode, watchedAt: at))
+                d.progress[PlaybackProgress.key(ref.tmdbId, .tv, e.season, e.episode)] = nil
+            }
+            var entry = d.titles[ref.id] ?? TrackedTitle(ref: ref, imdbId: imdbId, status: nil, addedAt: Date())
+            if entry.status == nil || entry.status == .PLAN_TO_WATCH || entry.status == .ON_HOLD { entry.status = .WATCHING }
+            if let imdbId { entry.imdbId = imdbId }
+            d.titles[ref.id] = entry
+        }
+    }
+
+    /// Bir sezonun bütün izlemelerini kaldırır.
+    func unmarkSeason(_ ref: MediaRef, season: Int) {
+        mutate { d in d.events.removeAll { $0.type == .tv && $0.tmdbId == ref.tmdbId && $0.season == season } }
     }
 
     /// Dizinin bütün yayınlanmış bölümleri izlendiyse "Bitti".
@@ -223,6 +245,146 @@ final class LibraryStore: ObservableObject {
         return true
     }
 
+    // MARK: Listeler
+
+    var lists: [UserList] { data.lists }
+
+    @discardableResult
+    func createList(name: String, rule: SmartRule?) -> UUID {
+        let list = UserList(name: name.trimmingCharacters(in: .whitespacesAndNewlines), rule: rule)
+        mutate { $0.lists.append(list) }
+        return list.id
+    }
+
+    func updateList(_ id: UUID, name: String, rule: SmartRule?) {
+        mutate { d in
+            guard let i = d.lists.firstIndex(where: { $0.id == id }) else { return }
+            d.lists[i].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            d.lists[i].rule = rule
+        }
+    }
+
+    func deleteList(_ id: UUID) { mutate { $0.lists.removeAll { $0.id == id } } }
+
+    func moveLists(from: IndexSet, to: Int) { mutate { $0.lists.move(fromOffsets: from, toOffset: to) } }
+
+    func isInList(_ id: UUID, _ ref: MediaRef) -> Bool {
+        data.lists.first { $0.id == id }?.items.contains { $0.ref.id == ref.id } ?? false
+    }
+
+    func toggleInList(_ id: UUID, _ ref: MediaRef) {
+        mutate { d in
+            guard let i = d.lists.firstIndex(where: { $0.id == id }), d.lists[i].rule == nil else { return }
+            if let j = d.lists[i].items.firstIndex(where: { $0.ref.id == ref.id }) {
+                d.lists[i].items.remove(at: j)
+            } else {
+                d.lists[i].items.insert(ListEntry(ref: ref, addedAt: Date()), at: 0)
+            }
+        }
+    }
+
+    func removeFromList(_ id: UUID, at offsets: IndexSet) {
+        mutate { d in
+            guard let i = d.lists.firstIndex(where: { $0.id == id }) else { return }
+            d.lists[i].items.remove(atOffsets: offsets)
+        }
+    }
+
+    // MARK: İlgilenmiyorum
+
+    func isHidden(_ ref: MediaRef) -> Bool { data.hidden[ref.id] != nil }
+
+    func setHidden(_ ref: MediaRef, _ hidden: Bool) { mutate { $0.hidden[ref.id] = hidden ? ref : nil } }
+
+    var hiddenTitles: [MediaRef] { data.hidden.values.sorted { $0.title < $1.title } }
+
+    /// Satır ve ızgaralarda gizlenenler çıkarılır.
+    func visible(_ items: [MediaRef]) -> [MediaRef] {
+        data.hidden.isEmpty ? items : items.filter { data.hidden[$0.id] == nil }
+    }
+
+    /// İzlenmiş ya da kütüphanede olan yapım (akıllı listede "bildiklerimi gizle").
+    func isKnown(_ ref: MediaRef) -> Bool {
+        data.titles[ref.id] != nil || data.events.contains { $0.tmdbId == ref.tmdbId && $0.type == ref.type }
+    }
+
+    // MARK: Kişi takibi
+
+    var following: [FollowedPerson] { data.following.sorted { $0.name < $1.name } }
+
+    func isFollowing(_ id: Int) -> Bool { data.following.contains { $0.id == id } }
+
+    func toggleFollow(_ person: FollowedPerson) {
+        mutate { d in
+            if let i = d.following.firstIndex(where: { $0.id == person.id }) {
+                d.following.remove(at: i)
+            } else {
+                d.following.append(person)
+            }
+        }
+    }
+
+    // MARK: Ana sayfa düzeni
+
+    var homeRows: [HomeRow] {
+        let saved = data.homeOrder.compactMap(HomeRow.init(rawValue:))
+        return saved + HomeRow.allCases.filter { !saved.contains($0) }
+    }
+
+    func isHomeRowHidden(_ row: HomeRow) -> Bool { data.homeHidden.contains(row.rawValue) }
+
+    func setHomeLayout(_ order: [HomeRow], hidden: Set<HomeRow>) {
+        mutate { d in
+            d.homeOrder = order.map(\.rawValue)
+            d.homeHidden = hidden.map(\.rawValue).sorted()
+        }
+    }
+
+    // MARK: İstatistik bilgisi
+
+    func facts(_ key: String) -> TitleFacts? { data.facts[key] }
+
+    func setFacts(_ key: String, _ facts: TitleFacts) { mutate { $0.facts[key] = facts } }
+
+    // MARK: İçe aktarma (Trakt)
+
+    /// İçe aktarılan izlemeler, durumlar ve listeler; aynı izleme (yapım, bölüm, gün) iki kez eklenmez.
+    func applyImport(events: [WatchEvent], titles: [TrackedTitle], lists: [String: [MediaRef]]) -> (events: Int, titles: Int) {
+        var addedEvents = 0
+        var addedTitles = 0
+        mutate { d in
+            func dayKey(_ e: WatchEvent) -> String {
+                "\(e.type.rawValue):\(e.tmdbId):\(e.season ?? 0):\(e.episode ?? 0):\(Int(e.watchedAt.timeIntervalSince1970 / 86400))"
+            }
+            var seen = Set(d.events.map(dayKey))
+            for e in events where seen.insert(dayKey(e)).inserted {
+                d.events.append(e)
+                addedEvents += 1
+            }
+            for t in titles {
+                if var existing = d.titles[t.ref.id] {
+                    if existing.status == nil, let status = t.status { existing.status = status }
+                    existing.imdbId = existing.imdbId ?? t.imdbId
+                    d.titles[t.ref.id] = existing
+                } else {
+                    d.titles[t.ref.id] = t
+                    addedTitles += 1
+                }
+            }
+            for (name, refs) in lists {
+                var index = d.lists.firstIndex { $0.name == name && $0.rule == nil } ?? -1
+                if index < 0 {
+                    d.lists.append(UserList(name: name))
+                    index = d.lists.count - 1
+                }
+                for ref in refs where !d.lists[index].items.contains(where: { $0.ref.id == ref.id }) {
+                    d.lists[index].items.append(ListEntry(ref: ref, addedAt: Date()))
+                }
+            }
+        }
+        return (addedEvents, addedTitles)
+    }
+
     // MARK: Eklentiler
 
     var addons: [InstalledAddon] { data.addons }
@@ -256,6 +418,10 @@ final class LibraryStore: ObservableObject {
             }
             for (key, p) in imported.progress where (d.progress[key]?.updatedAt ?? .distantPast) < p.updatedAt { d.progress[key] = p }
             for addon in imported.addons where !d.addons.contains(where: { $0.manifestUrl == addon.manifestUrl }) { d.addons.append(addon) }
+            for list in imported.lists where !d.lists.contains(where: { $0.id == list.id }) { d.lists.append(list) }
+            for (key, ref) in imported.hidden where d.hidden[key] == nil { d.hidden[key] = ref }
+            for person in imported.following where !d.following.contains(where: { $0.id == person.id }) { d.following.append(person) }
+            for (key, facts) in imported.facts where d.facts[key] == nil { d.facts[key] = facts }
         }
     }
 }

@@ -39,6 +39,7 @@ final class DiscoverModel: ObservableObject {
 /// Keşfet: film/dizi, türe göre popüler yapımlar (sonsuz kaydırma).
 struct DiscoverView: View {
     @StateObject private var model = DiscoverModel()
+    @EnvironmentObject private var store: LibraryStore
 
     var body: some View {
         ScrollView {
@@ -61,7 +62,7 @@ struct DiscoverView: View {
                 if let error = model.error, model.items.isEmpty {
                     MessageView(text: error) { Task { await model.reload() } }
                 }
-                PosterGrid(items: model.items) { Task { await model.more() } }
+                PosterGrid(items: store.visible(model.items)) { Task { await model.more() } }
             }
             .padding(.vertical, 12)
         }

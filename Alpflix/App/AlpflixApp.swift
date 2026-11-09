@@ -86,6 +86,16 @@ struct PlatformsRoute: Hashable {}
 /// Kütüphane > İndirilenler.
 struct DownloadsRoute: Hashable {}
 
+/// Kişi sayfası.
+struct PersonRoute: Hashable {
+    let id: Int
+}
+
+/// Kütüphane alt sayfaları.
+enum LibraryRoute: Hashable {
+    case lists, list(UUID), following, calendar, stats, hidden, homeLayout, traktImport, downloads
+}
+
 struct SourcesRoute: Hashable {
     let ref: MediaRef
     let imdbId: String?
@@ -130,6 +140,20 @@ struct RootView: View {
                 .navigationDestination(for: SourcesRoute.self) { SourcesView(route: $0) }
                 .navigationDestination(for: PlatformsRoute.self) { _ in PlatformsView() }
                 .navigationDestination(for: DownloadsRoute.self) { _ in DownloadsView() }
+                .navigationDestination(for: PersonRoute.self) { PersonView(personId: $0.id) }
+                .navigationDestination(for: LibraryRoute.self) { route in
+                    switch route {
+                    case .lists: ListsView()
+                    case .list(let id): ListDetailView(listId: id)
+                    case .following: FollowingView()
+                    case .calendar: CalendarView()
+                    case .stats: StatsView()
+                    case .hidden: HiddenTitlesView()
+                    case .homeLayout: HomeLayoutView()
+                    case .traktImport: TraktImportView()
+                    case .downloads: DownloadsView()
+                    }
+                }
         }
         .tabItem { Label(title, systemImage: icon) }
     }
