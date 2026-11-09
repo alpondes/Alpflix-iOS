@@ -42,9 +42,29 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/keys"
           KEY="$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8"
-          # Secret'a yapıştırırken satır sonları "\n" olarak girildiyse düzeltilir.
-          printf '%s\n' "$ASC_KEY_P8" | sed 's/\\n/\n/g' > "$KEY"
-          grep -q "BEGIN PRIVATE KEY" "$KEY" || { echo "::error::ASC_KEY_P8 bir .p8 dosyasının içeriği gibi görünmüyor (BEGIN PRIVATE KEY satırı yok)."; exit 1; }
+          # .p8 içeriği nasıl yapıştırılmış olursa olsun düzeltilir (içerik günlüğe yazılmaz):
+          # tam dosya, satır sonları "\n" olarak, yalnız ortadaki gövde ya da dosyanın base64'ü.
+          RAW=$(printf '%s' "$ASC_KEY_P8" | tr -d '\r' | sed 's/\\n/\n/g')
+          if printf '%s' "$RAW" | grep -q "BEGIN PRIVATE KEY"; then
+            BODY=$(printf '%s' "$RAW" | sed -e 's/-----BEGIN PRIVATE KEY-----//' -e 's/-----END PRIVATE KEY-----//' | tr -d ' \n\t')
+          else
+            BODY=$(printf '%s' "$RAW" | tr -d ' \n\t')
+            DECODED=$(printf '%s' "$BODY" | base64 -d 2>/dev/null || true)
+            if printf '%s' "$DECODED" | grep -q "BEGIN PRIVATE KEY"; then
+              BODY=$(printf '%s' "$DECODED" | sed -e 's/-----BEGIN PRIVATE KEY-----//' -e 's/-----END PRIVATE KEY-----//' | tr -d ' \r\n\t')
+            fi
+          fi
+          {
+            echo "-----BEGIN PRIVATE KEY-----"
+            printf '%s' "$BODY" | fold -w 64
+            echo
+            echo "-----END PRIVATE KEY-----"
+          } | sed '/^$/d' > "$KEY"
+          if ! openssl pkey -in "$KEY" -noout 2>/dev/null; then
+            echo "::error::ASC_KEY_P8 geçerli bir .p8 anahtarı değil (uzunluk: ${#BODY} karakter; beklenen ~200). Secret'a AuthKey_${ASC_KEY_ID}.p8 dosyasının içeriğini yapıştır."
+            exit 1
+          fi
+          echo "Anahtar dosyası geçerli."
           echo "KEY_PATH=$KEY" >> "$GITHUB_ENV"
           if [ -n "$TMDB_API_TOKEN" ]; then
             printf 'enum BuildSecrets {\n    static let tmdbToken = "%s"\n}\n' "$TMDB_API_TOKEN" > Alpflix/Core/BuildSecrets.swift
