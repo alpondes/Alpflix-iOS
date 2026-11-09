@@ -1,64 +1,45 @@
-# Alpflix iOS — TestFlight kurulumu (bir kez, ~20 dk)
+# Alpflix iOS — TestFlight kurulumu (bir kez, ~15 dk)
 
-> Depo şu an herkese açık: GitHub her push'ta uygulamayı ücretsiz Mac'te derleyip simülatörde açıyor
-> ("Derleme denetimi"). TestFlight kurulumu bitince depoyu yeniden gizliye alabilirsin
-> (Settings → General → Danger Zone → Change visibility); Codemagic gizli depoyla da çalışır, denetim işi
-> gizliyken kendiliğinden durur. Boş kalan `Alpflix-iOS-derleme` deposunu silebilirsin.
+Her şey GitHub'da: depo herkese açık olduğu için GitHub'ın Mac makineleri ücretsiz. `main`'e her push'ta
+"Derleme denetimi" (derleme + simülatör) ve "TestFlight" (imzalı derleme + yükleme) çalışır. İmza için
+profil/sertifika gerekmez: Apple'ın bulut imzalaması API anahtarıyla kendisi yapar.
 
-Mac gerekmez; hepsi tarayıcıdan (tablet/telefon da olur). Derleme **Codemagic**'in ücretsiz kotasında
-(ayda 500 dk Mac M2) yapılır, kart girilmezse ücret çıkmaz.
+## 1. App Store Connect API anahtarı (Admin)
+1. https://appstoreconnect.apple.com → **Users and Access** → üstte **Integrations** → solda **App Store Connect API**.
+2. **Team Keys** sekmesi (Individual Keys değil). Anahtar yerine **Request Access** çıkarsa bas, şartları kabul et.
+3. **+** → Name: `Alpflix GitHub` · Access: **Admin** (bulut imzalama için Admin gerekir) → **Generate**.
+4. Aynı sayfada:
+   - **Issuer ID**: listenin üstünde (uzun, tireli; yanında Copy).
+   - **Key ID**: anahtarın satırında (10 karakter).
+   - **Download**: `AuthKey_<KeyID>.p8` dosyası (yalnız bir kez indirilir).
+   Not: "Team ID" ve "Developer ID" (hesap sayfasındaki) bunlar değil.
 
-## 1. App Store Connect API anahtarı
-1. https://appstoreconnect.apple.com → **Users and Access** → **Integrations** → **App Store Connect API**.
-2. **Team Keys** → **+** → ad: `Alpflix Codemagic`, erişim: **App Manager** → **Generate**.
-3. `.p8` dosyasını indir (yalnız bir kez indirilebilir), **Key ID** ve sayfanın üstündeki **Issuer ID**'yi not et.
-   `.p8` içeriğini sohbete yapıştırma.
+## 2. Uygulama kaydı (bir kez)
+1. https://developer.apple.com/account/resources/identifiers → **+** → **App IDs** → **App** →
+   Description `Alpflix`, Bundle ID **Explicit** `com.alpflix.ios` → **Register**. (Zaten varsa geç.)
+2. https://appstoreconnect.apple.com/apps → **+** → **New App** → iOS · Name `Alpflix` (alınmışsa `Alpflix Kişisel`) ·
+   Türkçe · Bundle ID `com.alpflix.ios` · SKU `alpflix-ios` → **Create**. (Zaten varsa geç.)
 
-## 2. Uygulama kimliği (Apple Developer)
-1. https://developer.apple.com/account/resources/identifiers → **+** → **App IDs** → **App**.
-2. Description: `Alpflix`, Bundle ID: **Explicit** → `com.alpflix.ios` → **Register**.
+## 3. GitHub secret'ları
+https://github.com/alpondes/Alpflix-iOS/settings/secrets/actions → **New repository secret**, dört tane:
 
-## 3. App Store Connect'te uygulama kaydı
-1. https://appstoreconnect.apple.com/apps → **+** → **New App**.
-2. Platform: iOS · Name: `Alpflix` (alınmışsa `Alpflix Kişisel`) · Dil: Türkçe ·
-   Bundle ID: `com.alpflix.ios` · SKU: `alpflix-ios` · Erişim: Full Access → **Create**.
+| Name | Secret |
+|---|---|
+| `ASC_KEY_ID` | Key ID (10 karakter) |
+| `ASC_ISSUER_ID` | Issuer ID (tireli uzun kod) |
+| `ASC_KEY_P8` | `.p8` dosyasının **tüm içeriği**: `-----BEGIN PRIVATE KEY-----` satırından `-----END PRIVATE KEY-----` satırına kadar (dosyayı bir metin düzenleyiciyle aç, hepsini kopyala) |
+| `TMDB_API_TOKEN` | themoviedb.org → Ayarlar → API → **API Read Access Token** (uzun olan) |
 
-## 4. Codemagic
-Codemagic'te ayarlar "takım" düzeyindedir; tek başına kullanıyorsan takımın adı **Personal Account**'tur.
-Aşağıdaki yollar oradan başlar (sol menüde **Teams** → **Personal Account**). Bir takım açtıysan aynı adımları
-o takımın sayfasında yap; kişisel hesap ile takım ayrıdır, anahtar ve sertifikalar birinden ötekine geçmez.
+Secret'lar herkese açık depoda da gizlidir; kimse göremez, log'a yazılmaz.
 
-1. https://codemagic.io → **Sign up with GitHub** → **Add application** → GitHub → `alpondes/Alpflix-iOS`
-   (proje türü sorulursa **Other** / **codemagic.yaml**).
-2. **API anahtarı:** Teams → Personal Account → **Integrations** → **Developer Portal** → **Connect**
-   (ya da **Manage keys** → **Add key**): **App Store Connect API key name** alanına tam olarak **`Alpflix ASC`**,
-   sonra **Issuer ID**, **Key ID** ve `.p8` dosyası → **Save**.
-3. **Sertifika:** Teams → Personal Account → **codemagic.yaml settings** → **Code signing identities** →
-   **iOS certificates** sekmesi → **Generate certificate**:
-   - Certificate type: **Apple Distribution**
-   - App Store Connect API key: `Alpflix ASC`
-   - Reference name: `alpflix_dagitim` (herhangi bir ad olur) → **Generate**.
-   Sertifika Codemagic'te saklanır, Apple Developer'da da görünür.
-4. **Profil:** aynı yerde **iOS provisioning profiles** sekmesi → **Fetch profiles** → `com.alpflix.ios` için
-   **App Store** profilini seç → reference name `alpflix_profil` → **Download selected**.
-   Listede yoksa önce oluştur: developer.apple.com → **Certificates, IDs & Profiles** → **Profiles** → **+** →
-   Distribution altında **App Store Connect** → **Continue** → App ID `com.alpflix.ios` → sertifika olarak
-   3. adımda oluşan **Apple Distribution** sertifikası → ad `Alpflix AppStore` → **Generate**. Sonra Codemagic'te
-   yeniden **Fetch profiles**.
-5. **TMDB anahtarı:** Applications → **Alpflix-iOS** → **Environment variables** sekmesi → Variable name
-   `TMDB_API_TOKEN`, Variable value: TMDB okuma anahtarın, Group: `alpflix` (yeni grup) → **Secure** işaretli → **Add**.
-6. **Derleme:** Applications → Alpflix-iOS → **Start new build** → workflow **Alpflix iOS → TestFlight**,
-   branch `main` → **Start new build**. Yaklaşık 15–25 dk; bitince TestFlight'a yüklenir
-   (Apple'ın işlemesi 10–30 dk daha).
-
-Not: codemagic.yaml imza dosyalarını paket kimliğinden (`com.alpflix.ios`) kendisi bulur; reference name'leri
-yaml'a yazman gerekmez.
+## 4. Derleme ve yükleme
+https://github.com/alpondes/Alpflix-iOS/actions/workflows/testflight.yml → **Run workflow** → **Run workflow**.
+~20–30 dk; yeşil olunca Apple derlemeyi 10–30 dk içinde işler ve TestFlight'ta görünür. Sonraki her push kendiliğinden yükler.
 
 ## 5. iPhone
-1. App Store Connect → uygulama → **TestFlight → Internal Testing → +** grup oluştur, kendini ekle,
-   **Automatic Distribution** açık olsun.
-2. iPhone'a **TestFlight** uygulamasını kur, gelen daveti kabul et → **Alpflix** → Yükle.
-3. Uygulamada: Ayarlar → **Eklentiler**'e Torrentio adresini ekle ya da **Android yedeğini içe aktar**
-   (Alpflix Android'deki yedek dosyası; eklentiler yedekte varsa onlar da gelir).
+1. App Store Connect → uygulama → **TestFlight** → **Internal Testing** yanında **+** → grup oluştur,
+   kendini ekle, **Enable automatic distribution** açık.
+2. iPhone'a **TestFlight** uygulamasını kur, gelen daveti kabul et → **Alpflix** → **Yükle**.
+3. Uygulamada: Ayarlar → **Eklentiler**'e Torrentio adresini ekle ya da **Yedeği içe aktar** (Android yedeği).
 
-Her derleme 90 gün geçerli; `main`'e her push yeni derleme yükler.
+Her TestFlight derlemesi 90 gün geçerlidir; push'larla yenilenir. Boş kalan `Alpflix-iOS-derleme` deposunu silebilirsin.

@@ -8,7 +8,7 @@ Android yedeğini içe aktarma. Hesap ve sunucu yok; veri cihazda tek JSON (`Lib
 ## Kurallar (Android ile aynı)
 - Puanlama yok. Yapay zekâ özelliği yok. Analitik/reklam yok. Trakt yok. Doğrudan debrid API yok.
   Kaçak sitelerden kazıma yok. Uygulama içinde torrent motoru yok (torrent kaynakları gösterilir, oynatılmaz).
-- Gizli değerler depoya girmez: TMDB anahtarı Codemagic ortam değişkeninden derlemede
+- Gizli değerler depoya girmez: TMDB anahtarı GitHub secret'ından (TMDB_API_TOKEN) derlemede
   `Alpflix/Core/BuildSecrets.swift`'e yazılır (depoda boş) ya da uygulamada Ayarlar'dan girilir.
   Eklenti adresleri arayüzde maskelenir (`maskedUrl`), hata metnine ve log'a yazılmaz.
 - Türkçe arayüz; metinler `App/Strings.swift` (`L`) içinde, görünümlerde sabit metin yok.
@@ -16,8 +16,10 @@ Android yedeğini içe aktarma. Hesap ve sunucu yok; veri cihazda tek JSON (`Lib
   Next / IBM Plex Mono, fontlar `Resources/Fonts`). Saf siyah/beyaz, mor-mavi gradyan, buzlu cam yok.
 
 ## Derleme
-- Mac yok: Codemagic (`codemagic.yaml`) → XcodeGen (`project.yml`) → CocoaPods (MobileVLCKit 3.6) →
-  imza (`xcode-project use-profiles`) → IPA → TestFlight. Kurulum: `KURULUM.md`.
-- Xcode projesi ve Pods depoda yok (`.gitignore`); her derlemede üretilir.
-- Bulut konteynerinde Swift derleyicisi yok; sözdizimi tree-sitter ile denetlenir, tür hataları
-  Codemagic derlemesinde görülür.
+- Mac yok; depo herkese açık, GitHub Actions'ın Mac makineleri ücretsiz:
+  - `.github/workflows/derleme-denetimi.yml`: XcodeGen → CocoaPods (MobileVLCKit 3.6) → imzasız derleme +
+    simülatörde her sekmenin açılışı (ekran görüntüleri günlükte base64).
+  - `.github/workflows/testflight.yml`: imzasız arşiv → `-exportArchive` bulut imzalama (App Store Connect API
+    anahtarı, Admin) → App Store Connect'e yükleme. Secret'lar: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8, TMDB_API_TOKEN.
+- Kurulum: `KURULUM.md`. Xcode projesi ve Pods depoda yok (`.gitignore`); her derlemede üretilir.
+- Bulut konteynerinde Swift derleyicisi yok; sözdizimi tree-sitter ile, gerisi Actions'ta denetlenir.
