@@ -34,6 +34,13 @@ struct LibraryView: View {
             .padding(.vertical, 12)
         }
         .navigationTitle(L.tabLibrary)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(value: DownloadsRoute()) {
+                    Label(L.downloads, systemImage: "arrow.down.circle")
+                }
+            }
+        }
         .task(id: status) { await fillMissing(items) }
     }
 

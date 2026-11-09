@@ -166,11 +166,24 @@ struct PlayerView: View {
             }
             if !model.externalSubtitles.isEmpty {
                 Section {
-                    ForEach(Array(model.externalSubtitles.prefix(30).enumerated()), id: \.offset) { _, sub in
+                    ForEach(Array(model.externalSubtitles.prefix(40).enumerated()), id: \.offset) { _, sub in
                         Button { model.selectExternal(sub); scheduleHide() } label: {
                             Text([sub.lang?.uppercaseTr, sub.id].compactMap { $0 }.joined(separator: " · "))
                         }
                     }
+                }
+            }
+            // Eklentilerin durumu: altyazı neden gelmedi görülsün.
+            Section(model.request.url.isFileURL ? L.subtitleDownloaded : L.subtitleSources) {
+                if let results = model.subtitleResults {
+                    if results.isEmpty && !model.request.url.isFileURL {
+                        Text(L.subtitleNoAddon)
+                    }
+                    ForEach(results, id: \.self) { result in
+                        Text(result.summary)
+                    }
+                } else {
+                    Text(L.subtitleSearching)
                 }
             }
         } label: {

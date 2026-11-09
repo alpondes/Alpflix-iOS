@@ -59,6 +59,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         AppDelegate.orientationLock
     }
 
+    /// Arka plan indirmesi bitti/ilerledi: iOS uygulamayı uyandırır; oturum yeniden kurulup olaylar alınır.
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        guard identifier == DownloadStore.sessionIdentifier else {
+            completionHandler()
+            return
+        }
+        DownloadStore.backgroundCompletion = completionHandler
+        _ = DownloadStore.shared
+    }
+
     static func setOrientation(_ mask: UIInterfaceOrientationMask) {
         orientationLock = mask
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
@@ -71,6 +82,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 /// Platformlar sayfası. Değer tabanlı rota: oradan açılan yapım sayfası aynı yığına eklenir
 /// (görünüm tabanlı bağlantıdan değer tabanlı geçiş SwiftUI'da sayfayı geri attırıyordu).
 struct PlatformsRoute: Hashable {}
+
+/// Kütüphane > İndirilenler.
+struct DownloadsRoute: Hashable {}
 
 struct SourcesRoute: Hashable {
     let ref: MediaRef
@@ -115,6 +129,7 @@ struct RootView: View {
                 .navigationDestination(for: MediaRef.self) { DetailView(ref: $0) }
                 .navigationDestination(for: SourcesRoute.self) { SourcesView(route: $0) }
                 .navigationDestination(for: PlatformsRoute.self) { _ in PlatformsView() }
+                .navigationDestination(for: DownloadsRoute.self) { _ in DownloadsView() }
         }
         .tabItem { Label(title, systemImage: icon) }
     }

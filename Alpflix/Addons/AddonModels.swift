@@ -159,6 +159,12 @@ struct AddonSubtitle: Decodable, Hashable {
 
     private enum Keys: String, CodingKey { case id, url, lang }
 
+    init(id: String?, url: String, lang: String?) {
+        self.id = id
+        self.url = url
+        self.lang = lang
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: Keys.self)
         url = try container.decode(String.self, forKey: .url)

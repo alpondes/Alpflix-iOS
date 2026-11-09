@@ -25,6 +25,8 @@ final class PlayerModel: ObservableObject {
     @Published var currentAudio: Int32 = -1
     @Published var currentSubtitle: Int32 = -1
     @Published var externalSubtitles: [AddonSubtitle] = []
+    /// Eklentilerin altyazı sonuçları (menüde durum satırı); nil: aranıyor.
+    @Published var subtitleResults: [SubtitleResult]?
     @Published var rate: Float = 1
     @Published var next: (season: Int, episode: Int)?
     @Published var resolvingNext = false
@@ -77,6 +79,7 @@ final class PlayerModel: ObservableObject {
         autoSubtitleDone = false
         addedSubtitles = []
         externalSubtitles = []
+        subtitleResults = nil
         audioTracks = []
         subtitleTracks = []
         next = nil
@@ -96,10 +99,19 @@ final class PlayerModel: ObservableObject {
     /// Eklenti altyazıları ve (dizide) sıradaki bölüm.
     private func loadExtras(_ request: PlayRequest) async {
         guard let store else { return }
-        let id = AddonClient.stremioId(imdb: request.imdbId, season: request.season, episode: request.episode)
-        let subs = await AddonClient.allSubtitles(store.addons, type: request.ref.type.addonType, id: id)
         let preferred = UserDefaults.standard.string(forKey: SettingsKeys.subtitleLanguage) ?? "tr"
-        externalSubtitles = subs.sorted { Self.matches($0.lang, preferred) && !Self.matches($1.lang, preferred) }
+        if request.url.isFileURL {
+            // İndirilen yapım: altyazılar cihazda.
+            externalSubtitles = request.localSubtitles
+            subtitleResults = []
+        } else {
+            let id = AddonClient.stremioId(imdb: request.imdbId, season: request.season, episode: request.episode)
+            let results = await AddonClient.allSubtitles(store.addons, type: request.ref.type.addonType, id: id, filename: request.filename)
+            guard self.request == request else { return }
+            subtitleResults = results
+            let subs = results.flatMap(\.items)
+            externalSubtitles = subs.sorted { Self.matches($0.lang, preferred) && !Self.matches($1.lang, preferred) }
+        }
         if let url = SkipSegments.url(tmdbId: request.ref.tmdbId, season: request.season, episode: request.episode),
            let data = try? await HTTP.data(url, timeout: 10) {
             segments = SkipSegments.parse(data, season: request.season, episode: request.episode)
@@ -237,31 +249,10 @@ final class PlayerModel: ObservableObject {
         guard let url = URL(string: subtitle.url), !addedSubtitles.contains(subtitle.url) else { return }
         addedSubtitles.insert(subtitle.url)
         Task {
-            // Uzak adres (çoğu uzantısız, bazen gzip) önce cihaza .srt/.vtt olarak indirilir; VLC dosyayı
-            // uzantısından tanır. İndirilemezse adres doğrudan verilir.
-            let local = await Self.downloadSubtitle(url) ?? url
+            // Uzak adres önce cihaza .srt/.vtt olarak indirilir; indirilemezse adres doğrudan verilir.
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("altyazi", isDirectory: true)
+            let local = await SubtitleFiles.save(url, in: directory, name: UUID().uuidString) ?? url
             _ = player.addPlaybackSlave(local, type: .subtitle, enforce: true)
-        }
-    }
-
-    private static func downloadSubtitle(_ url: URL) async -> URL? {
-        guard url.scheme?.hasPrefix("http") == true,
-              var data = try? await HTTP.data(url, timeout: 20),
-              !data.isEmpty, data.count < 8_000_000 else { return nil }
-        if data.count > 2, data[data.startIndex] == 0x1f, data[data.startIndex + 1] == 0x8b {
-            guard let unzipped = AndroidBackup.gunzip(data) else { return nil }
-            data = unzipped
-        }
-        // Türkçe altyazılarda yaygın Windows-1254; VLC'ye UTF-8 verilir.
-        guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .windowsCP1254) else { return nil }
-        let ext = text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("WEBVTT") ? "vtt" : "srt"
-        let name = "alpflix-altyazi-\(UUID().uuidString).\(ext)"
-        let file = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-        do {
-            try Data(text.utf8).write(to: file)
-            return file
-        } catch {
-            return nil
         }
     }
 
@@ -285,6 +276,13 @@ final class PlayerModel: ObservableObject {
     /// Sıradaki bölümün kaynağı: aynı sürüm grubu (bingeGroup) önce, yoksa en iyi sıradaki kaynak.
     func playNext() async {
         guard let next, let store else { return }
+        // Sıradaki bölüm indirildiyse internetsiz, dosyadan.
+        if let local = DownloadStore.shared.playRequest(ref: request.ref, season: next.season, episode: next.episode, startMs: 0) {
+            if !watchedRecorded { recordWatched() }
+            player.stop()
+            load(local)
+            return
+        }
         resolvingNext = true
         defer { resolvingNext = false }
         let id = AddonClient.stremioId(imdb: request.imdbId, season: next.season, episode: next.episode)
@@ -304,7 +302,8 @@ final class PlayerModel: ObservableObject {
             episodeTitle: nil,
             url: url,
             bingeGroup: pick.stream.behaviorHints?.bingeGroup,
-            startMs: 0
+            startMs: 0,
+            filename: pick.stream.behaviorHints?.filename
         ))
     }
 }

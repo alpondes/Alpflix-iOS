@@ -2,7 +2,7 @@
 
 Alpflix'in (Android, `alpondes/Alpflix`) iPhone sürümü: SwiftUI, iOS 17+, kişisel kullanım, TestFlight.
 İlk sürüm: keşfet, arama, yapım sayfası (sezon/bölüm, izlendi), Stremio eklentileriyle kaynaklar,
-VLC oynatıcı (ses/altyazı/hız, kaldığın yer, sıradaki bölüm), kütüphane durumları, izlemeye devam et,
+VLC oynatıcı (ses/altyazı/hız, kaldığın yer, sıradaki bölüm), kütüphane durumları, izlemeye devam et, indirme (arka planda, yalnız Wi-Fi; sezonu indir),
 Android yedeğini içe aktarma. Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)

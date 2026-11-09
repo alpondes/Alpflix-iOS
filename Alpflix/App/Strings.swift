@@ -136,6 +136,55 @@ enum L {
     static func settingsVersion(_ v: String, _ b: String) -> String { "Alpflix iOS \(v) (derleme \(b))" }
     static let settingsCredit = "Film ve dizi bilgileri TMDB'den. Bu ürün TMDB API'sini kullanır ama TMDB tarafından onaylanmamıştır."
 
+    // Eklenti altyazıları (oynatıcı menüsünde durum satırları)
+    static let subtitleSources = "Altyazı eklentileri"
+    static let subtitleSearching = "Eklenti altyazıları aranıyor…"
+    static let subtitleNoAddon = "Altyazı sunan eklenti yok (Ayarlar > Eklentiler)"
+    static let subtitleDownloaded = "İndirilen altyazılar"
+    static func subtitleCount(_ name: String, _ n: Int) -> String { "\(name): \(n) altyazı" }
+    static func subtitleProblem(_ name: String, _ problem: String) -> String { "\(name): \(problem)" }
+    static func subtitleHTTP(_ code: Int) -> String { "sunucu hatası (HTTP \(code))" }
+    static let subtitleTimeout = "zaman aşımı"
+    static let subtitleUnreadable = "yanıt okunamadı"
+    static let subtitleNetwork = "bağlanılamadı"
+    static let resourceStream = "Kaynak"
+    static let resourceSubtitles = "Altyazı"
+    static let resourceCatalog = "Katalog"
+    static let resourceMeta = "Bilgi"
+
+    // İndirmeler
+    static let downloads = "İndirilenler"
+    static let download = "İndir"
+    static let downloadSwipeHint = "İndirmek için kaynağı sola kaydır ya da basılı tut. İndirme yalnız Wi-Fi ile yapılır."
+    static let downloadsEmpty = "İndirilen yapım yok. Kaynak listesinde bir kaynağı sola kaydırıp İndir'e dokun."
+    static let downloadWifiOnly = "İndirmeler yalnız Wi-Fi ile yapılır."
+    static let downloadWaitingWifi = "Wi-Fi bekleniyor"
+    static let downloadQueued = "Sırada"
+    static let downloadPaused = "Duraklatıldı"
+    static let downloadDone = "İndirildi"
+    static let downloadPause = "Duraklat"
+    static let downloadResume = "Sürdür"
+    static let downloadRetry = "Yeniden dene"
+    static let downloadPlay = "Oynat"
+    static let downloadPlayLocal = "İndirilen dosyayı oynat"
+    static let downloadStarted = "İndirme sıraya eklendi."
+    static let downloadExists = "Bu yapım zaten indirilenlerde."
+    static let downloadTorrent = "Torrent kaynağı indirilemez."
+    static let downloadNoSpace = "Cihazda yeterli boş alan yok."
+    static let downloadPlaceholder = "Kaynak hazır değil (debrid indiriyor ya da hata verdi). Başka bir kaynak dene."
+    static let downloadFailed = "İndirme başarısız oldu."
+    static func downloadSpace(_ used: String, _ free: String) -> String { "Kullanılan: \(used) · Boş: \(free)" }
+    static func downloadProgress(_ done: String, _ total: String) -> String { "\(done) / \(total)" }
+    static let downloadSeason = "Sezonu indir"
+    static func downloadSeasonConfirm(_ season: Int, _ n: Int) -> String {
+        "\(season). sezonun \(n) bölümü için kaynak kendiliğinden seçilip indirilecek (yalnız Wi-Fi)."
+    }
+    static func downloadSeasonProgress(_ done: Int, _ total: Int) -> String { "Kaynaklar seçiliyor: \(done)/\(total)" }
+    static func downloadSeasonDone(_ added: Int, _ missing: Int) -> String {
+        missing > 0 ? "\(added) bölüm sıraya eklendi; \(missing) bölüm için indirilebilir kaynak bulunamadı." : "\(added) bölüm sıraya eklendi."
+    }
+    static let downloadSeasonNothing = "Bu sezonda indirilecek yeni bölüm yok."
+
     static let errorNoToken = "TMDB anahtarı yok. Ayarlar'dan gir."
     static let errorNetwork = "Bağlantı kurulamadı."
     static let retry = "Yeniden dene"

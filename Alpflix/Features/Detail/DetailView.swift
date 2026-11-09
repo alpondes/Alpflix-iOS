@@ -45,6 +45,9 @@ struct DetailView: View {
     @EnvironmentObject private var store: LibraryStore
     @Environment(\.openURL) private var openURL
     @StateObject private var model = DetailModel()
+    @ObservedObject private var downloads = DownloadStore.shared
+    @State private var confirmSeason = false
+    @State private var notice: String?
 
     var body: some View {
         ScrollView {
@@ -61,6 +64,25 @@ struct DetailView: View {
         .navigationTitle(model.detail?.displayTitle ?? ref.title)
         .navigationBarTitleDisplayMode(.inline)
         .task { if model.detail == nil { await model.load(ref, store: store) } }
+        .alert(notice ?? "", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
+            Button(L.ok, role: .cancel) {}
+        }
+    }
+
+    /// Sezonda yayınlanmış ve henüz indirilmemiş bölümler.
+    private var seasonToDownload: [TMDBEpisode] {
+        model.episodes.filter { e in
+            e.hasAired && (downloads.item(ref, season: e.seasonNumber, episode: e.episodeNumber).map { $0.state == .failed } ?? true)
+        }
+    }
+
+    private func downloadSeason(_ d: TMDBDetail, _ full: MediaRef) {
+        guard let imdb = d.imdb, !imdb.isEmpty else { return }
+        let episodes = model.episodes
+        Task {
+            let result = await downloads.enqueueSeason(ref: full, imdbId: imdb, episodes: episodes, addons: store.addons)
+            notice = result.added + result.missing == 0 ? L.downloadSeasonNothing : L.downloadSeasonDone(result.added, result.missing)
+        }
     }
 
     @ViewBuilder
@@ -228,6 +250,28 @@ struct DetailView: View {
                 }
                 .padding(.horizontal, Theme.gutter)
             }
+            if let job = downloads.seasonJob {
+                HStack(spacing: 8) {
+                    ProgressView().tint(Theme.accent)
+                    Text(L.downloadSeasonProgress(job.done, job.total)).font(Theme.body(13)).foregroundStyle(Theme.textSecondary)
+                }
+                .padding(.horizontal, Theme.gutter)
+            } else if !model.loadingEpisodes, d.imdb?.isEmpty == false, !seasonToDownload.isEmpty {
+                Button { confirmSeason = true } label: {
+                    Label(L.downloadSeason, systemImage: "arrow.down.circle")
+                        .font(Theme.body(14).weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Theme.surfaceHigh, in: Capsule())
+                        .foregroundStyle(Theme.text)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, Theme.gutter)
+                .confirmationDialog(L.downloadSeasonConfirm(model.season, seasonToDownload.count), isPresented: $confirmSeason, titleVisibility: .visible) {
+                    Button(L.downloadSeason) { downloadSeason(d, full) }
+                    Button(L.cancel, role: .cancel) {}
+                }
+            }
             if model.loadingEpisodes {
                 ProgressView().tint(Theme.accent).frame(maxWidth: .infinity).padding()
             }
@@ -237,6 +281,7 @@ struct DetailView: View {
                     EpisodeRow(
                         episode: e,
                         watched: watched.contains(EpisodeRef(season: e.seasonNumber, episode: e.episodeNumber)),
+                        downloaded: downloads.item(full, season: e.seasonNumber, episode: e.episodeNumber)?.state == .done,
                         route: SourcesRoute(ref: full, imdbId: d.imdb, season: e.seasonNumber, episode: e.episodeNumber, episodeTitle: e.name),
                         onToggle: { isWatched in
                             store.setWatched(full, season: e.seasonNumber, episode: e.episodeNumber, watched: !isWatched, imdbId: d.imdb)
@@ -285,6 +330,7 @@ struct DetailView: View {
 struct EpisodeRow: View {
     let episode: TMDBEpisode
     let watched: Bool
+    var downloaded = false
     let route: SourcesRoute
     let onToggle: (Bool) -> Void
 
@@ -301,7 +347,13 @@ struct EpisodeRow: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .opacity(watched ? 0.5 : 1)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(episodeCode(episode.seasonNumber, episode.episodeNumber)).font(Theme.mono(12)).foregroundStyle(Theme.accent)
+                        HStack(spacing: 6) {
+                            Text(episodeCode(episode.seasonNumber, episode.episodeNumber)).font(Theme.mono(12)).foregroundStyle(Theme.accent)
+                            if downloaded {
+                                Image(systemName: "arrow.down.circle.fill").font(.system(size: 12)).foregroundStyle(Theme.accent)
+                                    .accessibilityLabel(L.downloadDone)
+                            }
+                        }
                         Text(episode.name ?? "").font(Theme.body(15)).foregroundStyle(Theme.text).lineLimit(2)
                         if let runtime = episode.runtime, runtime > 0 {
                             Text(durationText(minutes: runtime)).font(Theme.mono(11)).foregroundStyle(Theme.textSecondary)

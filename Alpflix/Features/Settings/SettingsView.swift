@@ -13,6 +13,20 @@ struct SettingsView: View {
     @State private var importing = false
     @State private var exporting = false
 
+    /// Eklentinin sunduğu kaynak türleri ("Kaynak · Altyazı"): altyazı eklentisinin tanınıp tanınmadığı görülsün.
+    static func resourceLabels(_ manifest: AddonManifest) -> String {
+        manifest.resources.map { resource -> String in
+            switch resource.name {
+            case "stream": return L.resourceStream
+            case "subtitles": return L.resourceSubtitles
+            case "catalog": return L.resourceCatalog
+            case "meta": return L.resourceMeta
+            default: return resource.name
+            }
+        }
+        .joined(separator: " · ")
+    }
+
     var body: some View {
         Form {
             Section {
@@ -24,6 +38,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(addon.manifest.name).font(Theme.body(16))
                             Text(addon.maskedUrl).font(Theme.mono(11)).foregroundStyle(Theme.textSecondary)
+                            Text(Self.resourceLabels(addon.manifest)).font(Theme.body(12)).foregroundStyle(Theme.textSecondary)
                         }
                     }
                     .tint(Theme.accent)

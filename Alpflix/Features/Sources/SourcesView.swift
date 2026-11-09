@@ -10,6 +10,10 @@ struct PlayRequest: Identifiable, Hashable {
     let url: URL
     let bingeGroup: String?
     let startMs: Int64
+    /// Kaynağın dosya adı (eklenti altyazısını eşleştirmek için).
+    var filename: String? = nil
+    /// İndirilen yapımda cihazdaki altyazılar.
+    var localSubtitles: [AddonSubtitle] = []
 
     var id: String { "\(ref.id):\(season ?? 0):\(episode ?? 0):\(url.absoluteString.hashValue)" }
     var isEpisode: Bool { season != nil && episode != nil }
@@ -44,7 +48,9 @@ struct SourcesView: View {
     let route: SourcesRoute
     @EnvironmentObject private var store: LibraryStore
     @StateObject private var model = SourcesModel()
+    @ObservedObject private var downloads = DownloadStore.shared
     @State private var playing: PlayRequest?
+    @State private var notice: String?
 
     var body: some View {
         List {
@@ -61,6 +67,14 @@ struct SourcesView: View {
             } else if model.items.isEmpty {
                 Text(L.sourcesEmpty).font(Theme.body(15)).foregroundStyle(Theme.textSecondary).listRowBackground(Theme.background)
             }
+            if let local = downloads.playRequest(ref: route.ref, season: route.season, episode: route.episode, startMs: route.startMs) {
+                Button { playing = local } label: {
+                    Label(L.downloadPlayLocal, systemImage: "arrow.down.circle.fill")
+                        .font(Theme.body(15).weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                }
+                .listRowBackground(Theme.background)
+            }
             ForEach(model.items) { candidate in
                 Button {
                     play(candidate)
@@ -69,7 +83,27 @@ struct SourcesView: View {
                 }
                 .disabled(candidate.playableURL == nil)
                 .listRowBackground(Theme.background)
+                .swipeActions(edge: .trailing) {
+                    if downloadable(candidate) {
+                        Button { download(candidate) } label: { Label(L.download, systemImage: "arrow.down.circle") }
+                            .tint(Theme.accent)
+                    }
+                }
+                .contextMenu {
+                    if downloadable(candidate) {
+                        Button { download(candidate) } label: { Label(L.download, systemImage: "arrow.down.circle") }
+                    }
+                }
             }
+            if !model.items.isEmpty {
+                Text(L.downloadSwipeHint)
+                    .font(Theme.body(12))
+                    .foregroundStyle(Theme.textSecondary)
+                    .listRowBackground(Theme.background)
+            }
+        }
+        .alert(notice ?? "", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
+            Button(L.ok, role: .cancel) {}
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -88,6 +122,23 @@ struct SourcesView: View {
         return route.ref.title
     }
 
+    private func downloadable(_ candidate: StreamCandidate) -> Bool {
+        candidate.playableURL?.scheme?.hasPrefix("http") == true && !candidate.info.torrentOnly
+    }
+
+    private func download(_ candidate: StreamCandidate) {
+        guard let imdb = model.imdbId else { return }
+        notice = downloads.enqueue(
+            ref: route.ref,
+            imdbId: imdb,
+            season: route.season,
+            episode: route.episode,
+            episodeTitle: route.episodeTitle,
+            candidate: candidate,
+            addons: store.addons
+        ) ?? L.downloadStarted
+    }
+
     private func play(_ candidate: StreamCandidate) {
         guard let url = candidate.playableURL, let imdb = model.imdbId else { return }
         playing = PlayRequest(
@@ -98,7 +149,8 @@ struct SourcesView: View {
             episodeTitle: route.episodeTitle,
             url: url,
             bingeGroup: candidate.stream.behaviorHints?.bingeGroup,
-            startMs: route.startMs
+            startMs: route.startMs,
+            filename: candidate.stream.behaviorHints?.filename
         )
     }
 }
