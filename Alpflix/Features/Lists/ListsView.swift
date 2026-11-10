@@ -274,6 +274,8 @@ struct ListEditorView: View {
 /// Yapım sayfasındaki "Listeye ekle" menüsü: elle listeler işaretli; yeni liste oluşturulabilir.
 struct AddToListMenu: View {
     let ref: MediaRef
+    /// Varsa simgenin altında yazı (yapım sayfasının alt satırı).
+    var caption: String? = nil
     @EnvironmentObject private var store: LibraryStore
     @State private var creating = false
     @State private var newName = ""
@@ -287,10 +289,14 @@ struct AddToListMenu: View {
             }
             Button { creating = true } label: { Label(L.listNew, systemImage: "plus") }
         } label: {
-            Image(systemName: "text.badge.plus")
-                .font(.system(size: 20))
-                .foregroundStyle(Theme.text)
-                .padding(8)
+            if let caption {
+                ActionIcon(icon: "text.badge.plus", title: caption)
+            } else {
+                Image(systemName: "text.badge.plus")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Theme.text)
+                    .padding(8)
+            }
         }
         .accessibilityLabel(L.listAdd)
         .alert(L.listNew, isPresented: $creating) {

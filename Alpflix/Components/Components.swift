@@ -9,17 +9,14 @@ struct PosterImage: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: Theme.posterRadius).fill(Theme.surfaceHigh)
-            AsyncImage(url: TMDBImage.poster(path, size: size), transaction: Transaction(animation: .easeOut(duration: 0.18))) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().aspectRatio(contentMode: .fill)
-                default:
-                    Text(title)
-                        .font(Theme.body(12))
-                        .foregroundStyle(Theme.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(8)
-                }
+            RemoteImage(url: TMDBImage.poster(path, size: size)) { image in
+                image.resizable().aspectRatio(contentMode: .fill)
+            } placeholder: {
+                Text(title)
+                    .font(Theme.body(12))
+                    .foregroundStyle(Theme.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(8)
             }
         }
         .aspectRatio(2.0 / 3.0, contentMode: .fit)

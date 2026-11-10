@@ -124,6 +124,7 @@ struct DetailView: View {
                 Text(meta(d)).font(Theme.mono(12)).foregroundStyle(Theme.textSecondary)
                 let badges = SeriesBadges.of(d)
                 if ref.type == .tv && !badges.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(badges, id: \.self) { badge in
                             Text(badge)
@@ -133,6 +134,7 @@ struct DetailView: View {
                                 .background(Theme.accent.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
                                 .foregroundStyle(Theme.accent)
                         }
+                    }
                     }
                 }
                 if store.isHidden(full) {
@@ -157,7 +159,7 @@ struct DetailView: View {
 
     private func header(_ d: TMDBDetail) -> some View {
         ZStack(alignment: .bottomLeading) {
-            AsyncImage(url: TMDBImage.backdrop(d.backdropPath)) { image in
+            RemoteImage(url: TMDBImage.backdrop(d.backdropPath)) { image in
                 image.resizable().aspectRatio(contentMode: .fill)
             } placeholder: {
                 Theme.surface
@@ -182,80 +184,85 @@ struct DetailView: View {
 
     @ViewBuilder
     private func actions(_ d: TMDBDetail, _ full: MediaRef) -> some View {
-        HStack(spacing: 10) {
-            if let route = playRoute(d, full) {
-                NavigationLink(value: route) {
-                    Label(route.startMs > 0 ? L.resume : L.play, systemImage: "play.fill")
-                        .font(Theme.body(16).weight(.semibold))
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 10)
-                        .background(Theme.accent, in: Capsule())
-                        .foregroundStyle(Theme.onAccent)
-                }
-            }
-            Menu {
-                ForEach(TitleStatus.allCases) { s in
-                    Button {
-                        store.setStatus(full, s, imdbId: d.imdb)
-                    } label: {
-                        if store.status(full) == s { Label(s.label, systemImage: "checkmark") } else { Text(s.label) }
+        VStack(spacing: 12) {
+            // Üst satır: Oynat ve Durum, eşit genişlikte; yazılar kesilmez.
+            HStack(spacing: 10) {
+                if let route = playRoute(d, full) {
+                    NavigationLink(value: route) {
+                        Label(route.startMs > 0 ? L.resume : L.play, systemImage: "play.fill")
+                            .font(Theme.body(16).weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                            .background(Theme.accent, in: Capsule())
+                            .foregroundStyle(Theme.onAccent)
                     }
                 }
-                if store.status(full) != nil {
-                    Button(L.removeStatus, role: .destructive) { store.setStatus(full, nil) }
-                }
-            } label: {
-                Label(store.status(full)?.label ?? L.status, systemImage: store.status(full) == nil ? "plus" : "bookmark.fill")
-                    .font(Theme.body(15))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Theme.surfaceHigh, in: Capsule())
-                    .foregroundStyle(Theme.text)
-            }
-            if let trailer = d.trailerURL {
-                Button { openURL(trailer) } label: {
-                    Image(systemName: "play.rectangle")
-                        .font(.system(size: 20))
+                Menu {
+                    ForEach(TitleStatus.allCases) { s in
+                        Button {
+                            store.setStatus(full, s, imdbId: d.imdb)
+                        } label: {
+                            if store.status(full) == s { Label(s.label, systemImage: "checkmark") } else { Text(s.label) }
+                        }
+                    }
+                    if store.status(full) != nil {
+                        Button(L.removeStatus, role: .destructive) { store.setStatus(full, nil) }
+                    }
+                } label: {
+                    Label(store.status(full)?.label ?? L.status, systemImage: store.status(full) == nil ? "plus" : "bookmark.fill")
+                        .font(Theme.body(15))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Theme.surfaceHigh, in: Capsule())
                         .foregroundStyle(Theme.text)
-                        .padding(8)
                 }
-                .accessibilityLabel(L.trailer)
             }
-            if ref.type == .movie {
-                let watched = store.isMovieWatched(ref.tmdbId)
-                Button {
-                    store.setWatched(full, watched: !watched, imdbId: d.imdb)
-                } label: {
-                    Image(systemName: watched ? "checkmark.circle.fill" : "checkmark.circle")
-                        .font(.system(size: 22))
-                        .foregroundStyle(watched ? Theme.accent : Theme.text)
-                        .padding(8)
+            // Alt satır: yazılı simgeler, eşit aralıklı.
+            HStack(spacing: 0) {
+                if let trailer = d.trailerURL {
+                    Button { openURL(trailer) } label: { ActionIcon(icon: "play.rectangle", title: L.trailer) }
+                        .buttonStyle(.plain)
                 }
-                .accessibilityLabel(watched ? L.markUnwatched : L.markWatched)
-                .contextMenu {
-                    Button { dating = WatchDateTarget(title: d.displayTitle, episodes: []) } label: {
-                        Label(L.markWatchedOnDate, systemImage: "calendar")
+                if ref.type == .movie {
+                    let watched = store.isMovieWatched(ref.tmdbId)
+                    Button {
+                        store.setWatched(full, watched: !watched, imdbId: d.imdb)
+                    } label: {
+                        ActionIcon(icon: watched ? "checkmark.circle.fill" : "checkmark.circle", title: L.watched, active: watched)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(watched ? L.markUnwatched : L.markWatched)
+                    .contextMenu {
+                        Button { dating = WatchDateTarget(title: d.displayTitle, episodes: []) } label: {
+                            Label(L.markWatchedOnDate, systemImage: "calendar")
+                        }
                     }
                 }
-            }
-            AddToListMenu(ref: full)
-            Menu {
-                Button {
-                    store.setHidden(full, !store.isHidden(full))
-                } label: {
-                    if store.isHidden(full) {
-                        Label(L.unhide, systemImage: "eye")
-                    } else {
-                        Label(L.notInterested, systemImage: "eye.slash")
+                AddToListMenu(ref: full, caption: L.listAdd)
+                Menu {
+                    if ref.type == .movie {
+                        Button { dating = WatchDateTarget(title: d.displayTitle, episodes: []) } label: {
+                            Label(L.markWatchedOnDate, systemImage: "calendar")
+                        }
                     }
+                    Button {
+                        store.setHidden(full, !store.isHidden(full))
+                    } label: {
+                        if store.isHidden(full) {
+                            Label(L.unhide, systemImage: "eye")
+                        } else {
+                            Label(L.notInterested, systemImage: "eye.slash")
+                        }
+                    }
+                } label: {
+                    ActionIcon(icon: "ellipsis.circle", title: L.more)
                 }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Theme.text)
-                    .padding(8)
+                .accessibilityLabel(L.more)
             }
-            .accessibilityLabel(L.more)
         }
     }
 
@@ -265,7 +272,7 @@ struct DetailView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(model.providers) { p in
-                        AsyncImage(url: TMDBImage.logo(p.logoPath)) { image in
+                        RemoteImage(url: TMDBImage.logo(p.logoPath)) { image in
                             image.resizable().aspectRatio(contentMode: .fit)
                         } placeholder: {
                             Theme.surfaceHigh
@@ -417,7 +424,7 @@ struct DetailView: View {
                         ForEach(people) { person in
                             NavigationLink(value: PersonRoute(id: person.id)) {
                             VStack(spacing: 6) {
-                                AsyncImage(url: TMDBImage.profile(person.profilePath)) { image in
+                                RemoteImage(url: TMDBImage.profile(person.profilePath)) { image in
                                     image.resizable().aspectRatio(contentMode: .fill)
                                 } placeholder: {
                                     Theme.surfaceHigh
@@ -453,7 +460,7 @@ struct EpisodeRow: View {
         HStack(alignment: .top, spacing: 12) {
             NavigationLink(value: route) {
                 HStack(alignment: .top, spacing: 12) {
-                    AsyncImage(url: TMDBImage.still(episode.stillPath)) { image in
+                    RemoteImage(url: TMDBImage.still(episode.stillPath)) { image in
                         image.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: {
                         Theme.surfaceHigh
@@ -556,5 +563,26 @@ enum SeriesBadges {
         f.locale = Locale(identifier: "tr_TR")
         f.dateFormat = "d MMMM"
         return f.string(from: date)
+    }
+}
+
+/// Yapım sayfasındaki yazılı simge düğmesi (alt satır).
+struct ActionIcon: View {
+    let icon: String
+    let title: String
+    var active = false
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 21))
+            Text(title)
+                .font(Theme.body(11))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .foregroundStyle(active ? Theme.accent : Theme.text)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 }

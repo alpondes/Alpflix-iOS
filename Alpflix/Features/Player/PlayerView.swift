@@ -324,7 +324,7 @@ struct PlayerView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(model.cast) { person in
                             HStack(spacing: 10) {
-                                AsyncImage(url: TMDBImage.profile(person.profilePath)) { image in
+                                RemoteImage(url: TMDBImage.profile(person.profilePath)) { image in
                                     image.resizable().aspectRatio(contentMode: .fill)
                                 } placeholder: {
                                     Theme.surfaceHigh

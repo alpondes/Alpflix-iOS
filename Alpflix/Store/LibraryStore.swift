@@ -83,11 +83,44 @@ final class LibraryStore: ObservableObject {
     }
 
     /// Kart bilgisi eksikse (yedekten gelen) TMDB'den gelenle tamamlar.
+    /// Kart bilgisi eksikse (yedekten/Trakt'tan gelen) TMDB'den gelenle tamamlar: kütüphane, listeler ve kaldığın yerler.
     func updateRef(_ ref: MediaRef) {
-        guard let existing = data.titles[ref.id] else { return }
-        let next = merged(existing.ref, ref)
-        guard next != existing.ref else { return }
-        mutate { $0.titles[ref.id]?.ref = next }
+        let titleChange = data.titles[ref.id].map { merged($0.ref, ref) }.flatMap { $0 != data.titles[ref.id]?.ref ? $0 : nil }
+        let listChange = data.lists.contains { $0.items.contains { $0.ref.id == ref.id && merged($0.ref, ref) != $0.ref } }
+        let progressChange = data.progress.values.contains { $0.ref.id == ref.id && merged($0.ref, ref) != $0.ref }
+        guard titleChange != nil || listChange || progressChange else { return }
+        mutate { d in
+            if let titleChange { d.titles[ref.id]?.ref = titleChange }
+            for i in d.lists.indices {
+                for j in d.lists[i].items.indices where d.lists[i].items[j].ref.id == ref.id {
+                    d.lists[i].items[j].ref = self.merged(d.lists[i].items[j].ref, ref)
+                }
+            }
+            for key in d.progress.keys where d.progress[key]?.ref.id == ref.id {
+                if let old = d.progress[key]?.ref { d.progress[key]?.ref = self.merged(old, ref) }
+            }
+        }
+    }
+
+    /// Afişi olmayan yapımlar (kütüphane, listeler, kaldığın yerler), en çok [limit] tane.
+    func refsMissingPoster(limit: Int = 40) -> [MediaRef] {
+        var seen = Set<String>()
+        var result: [MediaRef] = []
+        let all = data.titles.values.map(\.ref) + data.lists.flatMap { $0.items.map(\.ref) } + data.progress.values.map(\.ref)
+        for ref in all where ref.posterPath == nil && seen.insert(ref.id).inserted {
+            result.append(ref)
+            if result.count >= limit { break }
+        }
+        return result
+    }
+
+    /// Eksik afiş ve adları TMDB'den tamamlar (ana sayfa açılınca, arka planda).
+    func fillMissingPosters() async {
+        for ref in refsMissingPoster() {
+            if let detail = try? await TMDBClient.shared.detail(ref.type, ref.tmdbId) {
+                updateRef(detail.ref(ref.type))
+            }
+        }
     }
 
     private func merged(_ old: MediaRef, _ new: MediaRef) -> MediaRef {

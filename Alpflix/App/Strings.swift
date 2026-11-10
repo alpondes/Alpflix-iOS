@@ -9,6 +9,8 @@ enum L {
     static let continueWatching = "İzlemeye devam et"
     static let watchlist = "İzleyeceklerim"
     static let removeFromContinue = "İzlemeye devam et'ten kaldır"
+    static let seriesDetails = "Dizinin sayfası"
+    static let movieDetails = "Filmin sayfası"
     static let trending = "Bu hafta trend"
     static let popularMovies = "Popüler filmler"
     static let popularSeries = "Popüler diziler"

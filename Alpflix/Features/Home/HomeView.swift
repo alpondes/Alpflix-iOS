@@ -135,6 +135,8 @@ struct HomeView: View {
     @EnvironmentObject private var store: LibraryStore
     @EnvironmentObject private var profiles: ProfileStore
     @StateObject private var model = HomeModel()
+    /// "İzlemeye devam et"te basılı tutup Detaylar: yapımın sayfası.
+    @State private var detailsRef: MediaRef?
 
     private var continueKey: String {
         "\(profiles.activeId)|\(store.data.events.count)|\(store.data.progress.count)|\(store.data.dismissedContinue.count)|\(store.data.progress.values.map(\.updatedAt).max()?.timeIntervalSince1970 ?? 0)"
@@ -154,6 +156,10 @@ struct HomeView: View {
         }
         .navigationTitle(L.tabHome)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink(value: LibraryRoute.calendar) { Image(systemName: "calendar") }
+                    .accessibilityLabel(L.calendar)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { ProfilesView() } label: { ProfileAvatar(profile: profiles.active, size: 30) }
                     .accessibilityLabel(L.profiles)
@@ -164,8 +170,10 @@ struct HomeView: View {
             await model.refreshContinue(store)
         }
         .task { await model.load() }
+        .navigationDestination(item: $detailsRef) { DetailView(ref: $0) }
         .task(id: store.data.following.count) { await model.loadFollowing(store.following) }
         .task { await EpisodeAlerts.refreshIfNeeded(store) }
+        .task { await store.fillMissingPosters() }
         .task(id: continueKey) { await model.refreshContinue(store) }
     }
 }
@@ -177,7 +185,7 @@ extension HomeView {
         case .continueWatching:
             let items = model.continueItems.filter { !store.isHidden($0.ref) }
             if !items.isEmpty {
-                ContinueRow(items: items) { store.dismissContinue($0.ref.id) }
+                ContinueRow(items: items, onDetails: { detailsRef = $0.ref }) { store.dismissContinue($0.ref.id) }
             }
         case .watchlist: MediaRow(title: L.watchlist, items: store.titles(with: .PLAN_TO_WATCH).map(\.ref))
         case .seasonal: MediaRow(title: model.seasonalTitle ?? "", items: store.visible(model.seasonal))
@@ -195,6 +203,7 @@ extension HomeView {
 /// Yatay "İzlemeye devam et": dokununca kaynaklar (kaldığı yerden), basılı tutunca kaldırma.
 struct ContinueRow: View {
     let items: [ContinueItem]
+    let onDetails: (ContinueItem) -> Void
     let onRemove: (ContinueItem) -> Void
 
     var body: some View {
@@ -208,6 +217,9 @@ struct ContinueRow: View {
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
+                            Button { onDetails(item) } label: {
+                                Label(item.ref.type == .tv ? L.seriesDetails : L.movieDetails, systemImage: "info.circle")
+                            }
                             Button(role: .destructive) { onRemove(item) } label: {
                                 Label(L.removeFromContinue, systemImage: "xmark.circle")
                             }

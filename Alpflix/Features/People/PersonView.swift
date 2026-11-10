@@ -58,7 +58,7 @@ struct PersonView: View {
         let watched = released.filter { credit in credit.ref.map(isWatched) ?? false }.count
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top, spacing: 16) {
-                AsyncImage(url: TMDBImage.profile(p.profilePath)) { image in
+                RemoteImage(url: TMDBImage.profile(p.profilePath)) { image in
                     image.resizable().aspectRatio(contentMode: .fill)
                 } placeholder: {
                     Theme.surfaceHigh
@@ -150,7 +150,7 @@ struct FollowingView: View {
             ForEach(store.following) { person in
                 NavigationLink(value: PersonRoute(id: person.id)) {
                     HStack(spacing: 12) {
-                        AsyncImage(url: TMDBImage.profile(person.profilePath)) { image in
+                        RemoteImage(url: TMDBImage.profile(person.profilePath)) { image in
                             image.resizable().aspectRatio(contentMode: .fill)
                         } placeholder: {
                             Theme.surfaceHigh
