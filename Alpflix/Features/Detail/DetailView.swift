@@ -50,6 +50,9 @@ struct DetailView: View {
     @State private var notice: String?
     /// Tarih seçilerek izlendi işaretlenecek: film ya da bölüm(ler).
     @State private var dating: WatchDateTarget?
+    /// Rastgele bölüm: sayfa her göründüğünde yeniden seçilir; son açılan üst üste gelmez.
+    @State private var randomEpisode: EpisodeRef?
+    @State private var lastRandom: EpisodeRef?
 
     var body: some View {
         ScrollView {
@@ -66,6 +69,8 @@ struct DetailView: View {
         .navigationTitle(model.detail?.displayTitle ?? ref.title)
         .navigationBarTitleDisplayMode(.inline)
         .task { if model.detail == nil { await model.load(ref, store: store) } }
+        .onAppear { rollRandomEpisode() }
+        .onChange(of: model.aired().count) { _, _ in rollRandomEpisode() }
         .alert(notice ?? "", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
             Button(L.ok, role: .cancel) {}
         }
@@ -221,6 +226,15 @@ struct DetailView: View {
                         .foregroundStyle(Theme.text)
                 }
             }
+            // Rastgele bölüm: her dönüşte yeni bir bölüm seçilir (onAppear).
+            if ref.type == .tv, let random = randomEpisode {
+                NavigationLink(value: SourcesRoute(ref: full, imdbId: d.imdb, season: random.season, episode: random.episode)) {
+                    Label(L.randomEpisode, systemImage: "shuffle")
+                        .font(Theme.body(14))
+                        .foregroundStyle(Theme.accent)
+                }
+                .simultaneousGesture(TapGesture().onEnded { lastRandom = random })
+            }
             // Alt satır: yazılı simgeler, eşit aralıklı.
             HStack(spacing: 0) {
                 if let trailer = d.trailerURL {
@@ -285,6 +299,11 @@ struct DetailView: View {
             }
             Text(L.providersCredit).font(Theme.body(11)).foregroundStyle(Theme.textSecondary)
         }
+    }
+
+    private func rollRandomEpisode() {
+        guard ref.type == .tv else { return }
+        randomEpisode = RandomEpisode.pick(aired: model.aired(), watched: store.watchedEpisodes(ref.tmdbId), avoid: lastRandom)
     }
 
     /// Film: kaldığı yerden ya da baştan. Dizi: yarım bölüm varsa o, yoksa sıradaki bölüm.

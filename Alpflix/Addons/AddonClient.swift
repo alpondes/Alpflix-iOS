@@ -37,15 +37,35 @@ enum AddonClient {
     }
 
     /// Bir eklentinin altyazıları ve sonucu (menüde gösterilir: kaç altyazı ya da neden boş).
-    /// Yalın istek boş dönerse Stremio gibi dosya adıyla (`filename=` ek parametresi) bir kez daha sorulur.
-    static func subtitles(_ addon: InstalledAddon, type: String, id: String, filename: String?) async -> SubtitleResult {
+    /// Dosyanın parmak izi varsa Stremio gibi `videoHash`, `videoSize`, `filename` ek parametreleriyle
+    /// sorulur (aynı sürüme ait altyazı öne gelir); boş dönerse yalın, sonra yalnız dosya adıyla.
+    static func subtitles(_ addon: InstalledAddon, type: String, id: String, filename: String?, fingerprint: VideoFingerprint? = nil) async -> SubtitleResult {
+        var extras: [(String, String)] = []
+        if let fingerprint {
+            extras.append(("videoHash", fingerprint.hash))
+            extras.append(("videoSize", String(fingerprint.size)))
+        }
+        if let filename, !filename.isEmpty { extras.append(("filename", filename)) }
+        if fingerprint != nil, let extra = extraPath(extras) {
+            let matched = await subtitleQuery(addon, path: "\(type)/\(id)/\(extra)")
+            if !matched.items.isEmpty { return matched }
+        }
         var result = await subtitleQuery(addon, path: "\(type)/\(id)")
         if result.items.isEmpty, result.problem == nil, let filename, !filename.isEmpty,
-           let encoded = filename.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) {
-            let retry = await subtitleQuery(addon, path: "\(type)/\(id)/filename=\(encoded)")
+           let extra = extraPath([("filename", filename)]) {
+            let retry = await subtitleQuery(addon, path: "\(type)/\(id)/\(extra)")
             if !retry.items.isEmpty { result = retry }
         }
         return result
+    }
+
+    /// "videoHash=…&filename=…" (değerler kodlu); boşsa nil.
+    static func extraPath(_ extras: [(String, String)]) -> String? {
+        let parts = extras.compactMap { key, value -> String? in
+            guard !value.isEmpty, let encoded = value.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) else { return nil }
+            return "\(key)=\(encoded)"
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: "&")
     }
 
     private static let queryValueAllowed: CharacterSet = {
@@ -88,10 +108,10 @@ enum AddonClient {
     }
 
     /// Altyazı sunan bütün etkin eklentilerden (paralel); her eklentinin sonucu ayrı.
-    static func allSubtitles(_ addons: [InstalledAddon], type: String, id: String, filename: String? = nil) async -> [SubtitleResult] {
+    static func allSubtitles(_ addons: [InstalledAddon], type: String, id: String, filename: String? = nil, fingerprint: VideoFingerprint? = nil) async -> [SubtitleResult] {
         let usable = addons.filter { $0.enabled && $0.manifest.supports("subtitles", type: type, id: id) }
         return await withTaskGroup(of: SubtitleResult.self) { group in
-            for addon in usable { group.addTask { await subtitles(addon, type: type, id: id, filename: filename) } }
+            for addon in usable { group.addTask { await subtitles(addon, type: type, id: id, filename: filename, fingerprint: fingerprint) } }
             var all: [SubtitleResult] = []
             for await result in group { all.append(result) }
             return all.sorted { $0.addon < $1.addon }

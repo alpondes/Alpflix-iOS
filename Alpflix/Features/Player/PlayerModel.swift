@@ -2,6 +2,20 @@ import Foundation
 import MobileVLCKit
 import SwiftUI
 
+/// "Oynatma bilgisi" paneli: oynayan dosyanın teknik özeti.
+struct PlaybackInfo: Equatable {
+    var width: Int?
+    var height: Int?
+    var fps: Double?
+    var videoCodec: String?
+    var audioCodec: String?
+    var audioChannels: Int?
+    var audioRate: Int?
+    var downloadKbps: Int?
+    var displayed: Int = 0
+    var lost: Int = 0
+}
+
 struct TrackChoice: Identifiable, Hashable {
     let id: Int32
     let name: String
@@ -40,6 +54,19 @@ final class PlayerModel: ObservableObject {
     @Published private(set) var boosting = false
     /// Duraklatınca gösterilen oyuncular (bölümde önce konuklar).
     @Published var cast: [TMDBCastMember] = []
+    /// Ses gecikmesi (ms; pozitif: ses geç gelir).
+    @Published private(set) var audioDelayMs: Int = 0
+    /// Gece modu (konuşmalar öne çıkar, bas kısılır); kalıcı ayar.
+    @Published private(set) var nightMode = UserDefaults.standard.bool(forKey: SettingsKeys.nightMode)
+    /// Dokunmadan art arda bölümler oynadı: sıradaki başlamadan sorulur.
+    @Published var stillWatching = false
+    /// Açıksa oynatma bilgisi.
+    @Published var info: PlaybackInfo?
+
+    /// Kullanıcı dokunmadan kendiliğinden başlayan bölüm sayısı.
+    private var autoEpisodes = 0
+    private var lastReadBytes: Int32 = 0
+    private var lastReadAt = Date.distantPast
 
     private var segments: [SkipSegment] = []
     private var dismissedSkips: Set<SkipKind> = []
@@ -96,12 +123,22 @@ final class PlayerModel: ObservableObject {
         countdown = nil
         subtitleDelayMs = 0
         cast = []
+        stillWatching = false
         applySubtitleStyle()
         let media = VLCMedia(url: request.url)
         media.addOption(":network-caching=3000")
+        // Gece modu: VLC'nin sıkıştırıcısı (modül yoksa VLC filtreyi atlayıp oynatmaya devam eder).
+        if nightMode {
+            media.addOption(":audio-filter=compressor")
+            media.addOption(":compressor-threshold=-24")
+            media.addOption(":compressor-ratio=4")
+            media.addOption(":compressor-makeup-gain=9")
+        }
         if request.startMs > 0 { media.addOption(":start-time=\(request.startMs / 1000)") }
         player.media = media
+        applyNightEqualizer()
         player.play()
+        player.currentAudioPlaybackDelay = audioDelayMs * 1000
         Task { await loadExtras(request) }
     }
 
@@ -116,7 +153,10 @@ final class PlayerModel: ObservableObject {
             subtitleResults = []
         } else {
             let id = AddonClient.stremioId(imdb: request.imdbId, season: request.season, episode: request.episode)
-            async let addonResults = AddonClient.allSubtitles(store.addons, type: request.ref.type.addonType, id: id, filename: request.filename)
+            // Dosyanın parmak izi: eklentiler bu sürüme ait (kaymayan) altyazıyı öne alır.
+            let fingerprint = await VideoHash.fingerprint(request.url)
+            guard self.request == request else { return }
+            async let addonResults = AddonClient.allSubtitles(store.addons, type: request.ref.type.addonType, id: id, filename: request.filename, fingerprint: fingerprint)
             async let wyzie = WyzieClient.search(imdb: request.imdbId, season: request.season, episode: request.episode, preferred: preferred)
             var results = await addonResults
             let extra = await wyzie
@@ -163,6 +203,7 @@ final class PlayerModel: ObservableObject {
         lengthMs = Int64(player.media?.length.intValue ?? 0)
         refreshTracks()
         autoSelectSubtitle()
+        if info != nil { refreshInfo() }
         saveProgress(force: false)
         if lengthMs > 0 {
             let threshold = min(Int64(Double(lengthMs) * 0.9), SkipSegments.creditsStart(segments, duration: lengthMs) ?? lengthMs)
@@ -198,6 +239,12 @@ final class PlayerModel: ObservableObject {
             }
             guard let self, !Task.isCancelled else { return }
             self.countdown = nil
+            let limit = UserDefaults.standard.object(forKey: SettingsKeys.stillWatchingEpisodes) as? Int ?? 3
+            if limit > 0 && self.autoEpisodes >= limit {
+                self.stillWatching = true
+                return
+            }
+            self.autoEpisodes += 1
             await self.playNext()
         }
     }
@@ -236,11 +283,25 @@ final class PlayerModel: ObservableObject {
 
     // MARK: Denetimler
 
+    /// Kullanıcı ekrana dokundu: "Hâlâ izliyor musun?" sayacı sıfırlanır.
+    func noteInteraction() {
+        autoEpisodes = 0
+    }
+
+    /// "Hâlâ izliyor musun?" → Devam.
+    func continueWatching() {
+        stillWatching = false
+        noteInteraction()
+        Task { await playNext() }
+    }
+
     func togglePlay() {
+        noteInteraction()
         if player.isPlaying { player.pause() } else { player.play() }
     }
 
     func seek(toMs ms: Int64) {
+        noteInteraction()
         player.time = VLCTime(int: Int32(clamping: max(0, ms)))
     }
 
@@ -256,6 +317,85 @@ final class PlayerModel: ObservableObject {
     func setSubtitleDelay(_ ms: Int) {
         subtitleDelayMs = max(-10_000, min(10_000, ms))
         player.currentVideoSubTitleDelay = subtitleDelayMs * 1000
+    }
+
+    /// Ses gecikmesi (±3 sn, 50 ms adım); VLC mikrosaniye ister.
+    func setAudioDelay(_ ms: Int) {
+        audioDelayMs = max(-3_000, min(3_000, ms))
+        player.currentAudioPlaybackDelay = audioDelayMs * 1000
+    }
+
+    /// Gece modu: ekolayzer hemen, sıkıştırıcı sıradaki yüklemede (VLC filtresi oynatma başında kurulur).
+    func setNightMode(_ on: Bool) {
+        nightMode = on
+        UserDefaults.standard.set(on, forKey: SettingsKeys.nightMode)
+        applyNightEqualizer()
+    }
+
+    /// Konuşma bandı (1–6 kHz) öne, bas geri; kapalıysa ekolayzer yok.
+    private func applyNightEqualizer() {
+        guard nightMode else {
+            player.equalizer = nil
+            return
+        }
+        let equalizer = VLCAudioEqualizer()
+        equalizer.preAmplification = 4
+        for band in equalizer.bands {
+            band.amplification = Self.nightGain(frequency: band.frequency)
+        }
+        player.equalizer = equalizer
+    }
+
+    static func nightGain(frequency: Float) -> Float {
+        switch frequency {
+        case ..<100: return -8
+        case ..<250: return -4
+        case ..<800: return 0
+        case ..<2_000: return 2
+        case ..<7_000: return 5
+        default: return 1
+        }
+    }
+
+    /// Oynatma bilgisi panelini aç/kapat.
+    func setInfoVisible(_ visible: Bool) {
+        lastReadBytes = player.media?.statistics.readBytes ?? 0
+        lastReadAt = Date()
+        info = visible ? PlaybackInfo() : nil
+        if visible { refreshInfo() }
+    }
+
+    private func refreshInfo() {
+        guard let media = player.media else { return }
+        var next = info ?? PlaybackInfo()
+        let size = player.videoSize
+        if size.width > 0 { next.width = Int(size.width); next.height = Int(size.height) }
+        for case let track as [String: Any] in media.tracksInformation {
+            let type = track[VLCMediaTracksInformationType] as? String
+            let fourcc = (track[VLCMediaTracksInformationCodec] as? NSNumber)?.uint32Value
+            if type == VLCMediaTracksInformationTypeVideo {
+                if let fourcc { next.videoCodec = VLCMedia.codecName(forFourCC: fourcc, trackType: VLCMediaTracksInformationTypeVideo) }
+                let rate = (track[VLCMediaTracksInformationFrameRate] as? NSNumber)?.doubleValue ?? 0
+                let denominator = (track[VLCMediaTracksInformationFrameRateDenominator] as? NSNumber)?.doubleValue ?? 0
+                if rate > 0 && denominator > 0 { next.fps = rate / denominator }
+            } else if type == VLCMediaTracksInformationTypeAudio, next.audioCodec == nil {
+                if let fourcc { next.audioCodec = VLCMedia.codecName(forFourCC: fourcc, trackType: VLCMediaTracksInformationTypeAudio) }
+                next.audioChannels = (track[VLCMediaTracksInformationAudioChannelsNumber] as? NSNumber)?.intValue
+                next.audioRate = (track[VLCMediaTracksInformationAudioRate] as? NSNumber)?.intValue
+            }
+        }
+        let stats = media.statistics
+        next.displayed = Int(stats.displayedPictures)
+        next.lost = Int(stats.lostPictures)
+        let elapsed = Date().timeIntervalSince(lastReadAt)
+        if elapsed >= 1 {
+            // readBytes 32 bit: 2 GB'ta başa sarar; o anki ölçüm atlanır.
+            let delta = Int64(stats.readBytes) - Int64(lastReadBytes)
+            if delta >= 0 { next.downloadKbps = Int(Double(delta) * 8 / 1000 / elapsed) }
+            lastReadBytes = stats.readBytes
+            lastReadAt = Date()
+        }
+        if next != info { info = next }
     }
 
     func setBoost(_ on: Bool) {

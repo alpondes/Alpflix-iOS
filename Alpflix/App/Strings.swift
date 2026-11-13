@@ -314,6 +314,33 @@ enum L {
         seconds == 0 ? "0 sn" : String(format: "%@%.2f sn", seconds > 0 ? "+" : "", seconds).replacingOccurrences(of: ".", with: ",")
     }
     static let subtitleEarlier = "Altyazıyı öne al"
+    // Oynatıcı: gece modu, ses gecikmesi, hâlâ izliyor musun, oynatma bilgisi, yakınlaştırma (0.7)
+    static let nightMode = "Gece modu"
+    static let nightModeDesc = "Bası kısar, konuşmaları öne çıkarır."
+    static let audioDelay = "Ses gecikmesi"
+    static let audioDelayHint = "Artı değer sesi geciktirir; ses görüntüden önce geliyorsa artırın."
+    static func audioDelayValue(_ seconds: Double) -> String { subtitleDelayValue(seconds) }
+    static let audioEarlier = "Sesi öne al"
+    static let audioLater = "Sesi geciktir"
+    static let stillWatchingTitle = "Hâlâ izliyor musun?"
+    static let stillWatchingBody = "Bir süredir bölümler kendiliğinden oynuyor. Sıradaki bölüm başlasın mı?"
+    static let stillWatchingContinue = "Devam et"
+    static let stillWatchingStop = "Kapat"
+    static let stillWatchingSetting = "\"Hâlâ izliyor musun?\" sorusu"
+    static let stillWatchingFooter = "Dokunmadan art arda bu kadar bölüm kendiliğinden başlayınca sorulur; uyuyakalırsanız bölümler izlendi sayılmaz."
+    static let stillWatchingOff = "Sorma"
+    static func episodesCount(_ n: Int) -> String { "\(n) bölüm" }
+    static let playbackInfo = "Oynatma bilgisi"
+    static let infoVideo = "Görüntü"
+    static let infoAudio = "Ses"
+    static let infoDownload = "İndirme"
+    static let infoFrames = "Kaybolan / gösterilen"
+    static func infoMbps(_ value: Double) -> String { String(format: "%.1f Mb/sn", value).replacingOccurrences(of: ".", with: ",") }
+    static func infoFps(_ value: Double) -> String { String(format: "%.3f fps", value).replacingOccurrences(of: ".", with: ",") }
+    static func infoChannels(_ n: Int) -> String { "\(n) kanal" }
+    static func infoKHz(_ value: Double) -> String { String(format: "%.1f kHz", value).replacingOccurrences(of: ".", with: ",") }
+    static let zoomReset = "Yakınlaştırmayı sıfırla"
+    static let randomEpisode = "Rastgele bölüm"
     static let subtitleLater = "Altyazıyı geciktir"
     static let subtitleSize = "Altyazı boyutu"
     static let subtitleColor = "Altyazı rengi"

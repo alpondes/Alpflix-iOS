@@ -30,6 +30,9 @@ struct PlayerView: View {
     @State private var scrubbing = false
     @State private var scrubValue: Double = 0
     @State private var hideTask: Task<Void, Never>?
+    /// İki parmakla yakınlaştırma (1x–3x).
+    @State private var zoom: CGFloat = 1
+    @GestureState private var pinch: CGFloat = 1
 
     init(request: PlayRequest) {
         _model = StateObject(wrappedValue: PlayerModel(request: request))
@@ -38,7 +41,9 @@ struct PlayerView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VLCVideoView(player: model.player).ignoresSafeArea()
+            VLCVideoView(player: model.player)
+                .scaleEffect(min(3, max(1, zoom * pinch)))
+                .ignoresSafeArea()
             GeometryReader { geo in
                 Color.clear
                     .contentShape(Rectangle())
@@ -50,6 +55,15 @@ struct PlayerView: View {
                             .onEnded { _ in
                                 swipeStart = nil
                                 withAnimation(.easeOut(duration: 0.2)) { swipeIndicator = nil }
+                            }
+                    )
+                    // İki parmak: yakınlaştırma.
+                    .simultaneousGesture(
+                        MagnificationGesture()
+                            .updating($pinch) { value, state, _ in state = value }
+                            .onEnded { value in
+                                zoom = min(3, max(1, zoom * value))
+                                model.noteInteraction()
                             }
                     )
                     // Basılı tut: 2x.
@@ -86,6 +100,17 @@ struct PlayerView: View {
             }
             if !model.playing && !model.buffering && !model.failed && model.countdown == nil && !model.cast.isEmpty && panel == nil {
                 pausedCast
+            }
+            if let info = model.info {
+                VStack {
+                    HStack {
+                        infoOverlay(info)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.top, 70)
+                .padding(.leading, 20)
             }
             if model.buffering && !model.failed {
                 ProgressView().tint(Theme.accent).scaleEffect(1.4)
@@ -151,6 +176,12 @@ struct PlayerView: View {
             if ended { controls = true }
         }
         .onChange(of: holding) { _, on in model.setBoost(on) }
+        .alert(L.stillWatchingTitle, isPresented: $model.stillWatching) {
+            Button(L.stillWatchingContinue) { model.continueWatching() }
+            Button(L.stillWatchingStop, role: .cancel) { dismiss() }
+        } message: {
+            Text(L.stillWatchingBody)
+        }
         .sheet(item: $panel, onDismiss: scheduleHide) { kind in
             TrackPanel(kind: kind, model: model) { panel = nil }
                 .presentationDetents([.medium, .large])
@@ -192,6 +223,16 @@ struct PlayerView: View {
                 }
             }
             Spacer()
+            Button { model.setInfoVisible(model.info == nil) } label: {
+                Image(systemName: model.info == nil ? "info.circle" : "info.circle.fill").font(.system(size: 20))
+            }
+            .accessibilityLabel(L.playbackInfo)
+            if zoom > 1 {
+                Button { withAnimation(.easeOut(duration: 0.2)) { zoom = 1 } } label: {
+                    Image(systemName: "arrow.down.right.and.arrow.up.left").font(.system(size: 20))
+                }
+                .accessibilityLabel(L.zoomReset)
+            }
             audioMenu
             subtitleMenu
             speedMenu
@@ -351,7 +392,39 @@ struct PlayerView: View {
         .allowsHitTesting(true)
     }
 
+    /// Oynatma bilgisi: görüntü, ses, indirme hızı, gösterilen/kaybolan kareler.
+    private func infoOverlay(_ info: PlaybackInfo) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L.playbackInfo).font(Theme.body(13).weight(.semibold)).foregroundStyle(Theme.accent)
+            infoRow(L.infoVideo, [
+                info.width.flatMap { w in info.height.map { "\(w)×\($0)" } },
+                info.fps.map { L.infoFps($0) },
+                info.videoCodec,
+            ])
+            infoRow(L.infoAudio, [
+                info.audioCodec,
+                info.audioChannels.map { L.infoChannels($0) },
+                info.audioRate.map { L.infoKHz(Double($0) / 1000) },
+            ])
+            infoRow(L.infoDownload, [info.downloadKbps.map { L.infoMbps(Double($0) / 1000) }])
+            infoRow(L.infoFrames, ["\(info.lost) / \(info.displayed)"])
+        }
+        .padding(12)
+        .frame(maxWidth: 360, alignment: .leading)
+        .background(Theme.surface.opacity(0.88), in: RoundedRectangle(cornerRadius: 12))
+        .allowsHitTesting(false)
+    }
+
+    private func infoRow(_ label: String, _ parts: [String?]) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label).font(Theme.mono(11)).foregroundStyle(Theme.textSecondary).frame(width: 110, alignment: .leading)
+            Text(parts.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ").ifEmpty("—"))
+                .font(Theme.mono(11)).foregroundStyle(Theme.text)
+        }
+    }
+
     private func toggleControls() {
+        model.noteInteraction()
         controls.toggle()
         if controls { scheduleHide() }
     }
@@ -382,6 +455,7 @@ struct TrackPanel: View {
             List {
                 switch kind {
                 case .audio:
+                    audioSettings
                     ForEach(model.audioTracks.filter { $0.id >= 0 }) { track in
                         row(track.name, selected: track.id == model.currentAudio) { model.selectAudio(track.id) }
                     }
@@ -396,6 +470,46 @@ struct TrackPanel: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button(L.ok, action: close) }
             }
+        }
+    }
+
+    /// Gece modu ve ses gecikmesi (seçince panel kapanmaz).
+    @ViewBuilder
+    private var audioSettings: some View {
+        Section {
+            Toggle(isOn: Binding(get: { model.nightMode }, set: { model.setNightMode($0) })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L.nightMode).font(Theme.body(15)).foregroundStyle(Theme.text)
+                    Text(L.nightModeDesc).font(Theme.body(12)).foregroundStyle(Theme.textSecondary)
+                }
+            }
+            .tint(Theme.accent)
+            .listRowBackground(Theme.surfaceHigh)
+        }
+        Section(L.audioDelay) {
+            HStack(spacing: 12) {
+                Button { model.setAudioDelay(model.audioDelayMs - 50) } label: {
+                    Image(systemName: "minus.circle").font(.system(size: 24))
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(L.audioEarlier)
+                Text(L.audioDelayValue(Double(model.audioDelayMs) / 1000))
+                    .font(Theme.mono(15))
+                    .foregroundStyle(Theme.text)
+                    .frame(maxWidth: .infinity)
+                Button { model.setAudioDelay(model.audioDelayMs + 50) } label: {
+                    Image(systemName: "plus.circle").font(.system(size: 24))
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(L.audioLater)
+                if model.audioDelayMs != 0 {
+                    Button(L.reset) { model.setAudioDelay(0) }.buttonStyle(.borderless)
+                }
+            }
+            .foregroundStyle(Theme.accent)
+            .listRowBackground(Theme.surfaceHigh)
+            Text(L.audioDelayHint).font(Theme.body(12)).foregroundStyle(Theme.textSecondary)
+                .listRowBackground(Theme.surfaceHigh)
         }
     }
 

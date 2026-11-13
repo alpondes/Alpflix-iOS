@@ -25,6 +25,9 @@ enum Theme {
 extension String {
     /// Türkçe büyük harf (i → İ).
     var uppercaseTr: String { uppercased(with: Locale(identifier: "tr_TR")) }
+
+    /// Boşsa yerine konacak metin.
+    func ifEmpty(_ fallback: String) -> String { isEmpty ? fallback : self }
 }
 
 /// "S01B05" biçimi.
