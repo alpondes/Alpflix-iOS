@@ -357,6 +357,32 @@ enum L {
     static let traktErrorKey = "Client ID kabul edilmedi. Trakt uygulamasındaki Client ID'yi kontrol et."
     static let traktErrorNetwork = "Trakt'a bağlanılamadı."
 
+    // Wi-Fi eşitleme
+    static let syncTitle = "Wi-Fi eşitleme"
+    static let syncIntro = "Aynı Wi-Fi ağındaki cihazlarda Alpflix açıkken kaldığın yerler, izleme geçmişi, durumlar ve İzlemeye devam et kendiliğinden eşitlenir. Android telefon ve tabletle de çalışır. Bulut ya da hesap yok; veri yalnız cihazlar arasında, şifreli gider."
+    static let syncCreateCode = "Kod oluştur"
+    static let syncEnterCode = "Kodu gir"
+    static let syncPairHint = "Bir cihazda kod oluştur, öbür cihazda (iPhone ya da Android) Ayarlar > Wi-Fi eşitleme > Kodu gir ile aynı kodu yaz. Bir kez yapılır. İlk seferde iPhone yerel ağ izni ister; izin ver."
+    static let syncCodeTitle = "Eşleştirme kodu"
+    static let syncCodeHint = "Bu kodu öbür cihazda Kodu gir ile yaz. Kodu bilen, aynı ağda verine erişebilir; kimseyle paylaşma."
+    static let syncCodeFormat = "12 karakter, ör. K7PQ-2MXD-9RTA"
+    static let syncCodeInvalid = "Kod 12 karakter olmalı (ör. K7PQ-2MXD-9RTA)."
+    static let syncDevices = "Bulunan cihazlar"
+    static func syncPeerLast(_ when: String) -> String { "Son eşitleme: \(when)" }
+    static let syncPeerNever = "Henüz eşitlenmedi"
+    static let syncNow = "Şimdi eşitle"
+    static let syncShowCode = "Kodu göster"
+    static let syncUnpair = "Eşleştirmeyi kaldır"
+    static let syncUnpairConfirm = "Bu cihaz artık eşitlenmez. Veriler silinmez; yeniden eşleştirmek için kodu tekrar girmen gerekir."
+    static let syncWhat = "Eşitlenenler: kaldığın yerler, izleme geçmişi (kaldırılan izlemeler dahil), kütüphane durumları ve İzlemeye devam et'ten kaldırılanlar. Her iki cihazda aynı adlı profil açık olmalı. İki cihazda da uygulama açıkken çalışır; değişiklik birkaç saniyede gider."
+    static let syncStatusOff = "Kapalı (uygulama arka planda)"
+    static let syncStatusSearching = "Açık · aynı ağda cihaz aranıyor"
+    static let syncStatusConnected = "Açık · cihaz bulundu"
+    static func syncLast(_ when: String) -> String { "Son eşitleme \(when)" }
+    static let syncProblemProfile = "Öbür cihazda farklı bir profil açık; aynı adlı profili aç."
+    static let syncProblemLocked = "Profil kilitli; PIN girilince eşitlenir."
+    static let syncProblemConnection = "Son denemede bağlanılamadı; cihazlar aynı ağda mı?"
+
     static let errorNoToken = "TMDB anahtarı yok. Ayarlar'dan gir."
     static let errorNetwork = "Bağlantı kurulamadı."
     static let retry = "Yeniden dene"

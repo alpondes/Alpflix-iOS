@@ -33,8 +33,12 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Alpflix kamerayı kullanmaz; oynatıcı kütüphanesi (VLC) bu açıklamayı gerektirir.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_alpflix._tcp</string>
+	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Yerel ağdaki yayın kaynaklarına (ör. TorrServer) bağlanmak için.</string>
+	<string>Aynı Wi-Fi'deki telefon ve tabletindeki Alpflix ile kaldığın yerleri eşitlemek ve yerel ağdaki yayın kaynaklarına (ör. TorrServer) bağlanmak için.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Alpflix mikrofonu kullanmaz; oynatıcı kütüphanesi (VLC) bu açıklamayı gerektirir.</string>
 	<key>UIAppFonts</key>

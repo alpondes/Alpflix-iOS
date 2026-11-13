@@ -93,7 +93,7 @@ struct PersonRoute: Hashable {
 
 /// Kütüphane alt sayfaları.
 enum LibraryRoute: Hashable {
-    case lists, list(UUID), following, calendar, stats, hidden, homeLayout, traktImport, downloads
+    case lists, list(UUID), following, calendar, stats, hidden, homeLayout, traktImport, downloads, sync
 }
 
 struct SourcesRoute: Hashable {
@@ -107,6 +107,8 @@ struct SourcesRoute: Hashable {
 
 struct RootView: View {
     @EnvironmentObject private var profiles: ProfileStore
+    @EnvironmentObject private var store: LibraryStore
+    @Environment(\.scenePhase) private var scenePhase
     /// Simülatör denetimi açılışta bir sekmeyle başlatabilir ("-alpflixTab 2").
     @State private var selection: Int = {
         let args = ProcessInfo.processInfo.arguments
@@ -115,10 +117,17 @@ struct RootView: View {
     }()
 
     var body: some View {
-        if profiles.unlocked {
-            tabs
-        } else {
-            ProfileGate()
+        Group {
+            if profiles.unlocked {
+                tabs
+            } else {
+                ProfileGate()
+            }
+        }
+        // Wi-Fi eşitlemesi yalnız uygulama ön plandayken çalışır.
+        .onAppear { LanSyncEngine.shared.configure(store: store, profiles: profiles) }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            LanSyncEngine.shared.setActive(phase == .active)
         }
     }
 
@@ -152,6 +161,7 @@ struct RootView: View {
                     case .homeLayout: HomeLayoutView()
                     case .traktImport: TraktImportView()
                     case .downloads: DownloadsView()
+                    case .sync: SyncView()
                     }
                 }
         }

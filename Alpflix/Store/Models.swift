@@ -73,11 +73,15 @@ struct AppData: Codable {
     var homeHidden: [String] = []
     /// İstatistik için yapım bilgisi (süre, türler); TMDB'den bir kez alınır.
     var facts: [String: TitleFacts] = [:]
+    /// Wi-Fi eşitlemesi: durumların değişme zamanı (ms) ve kaldırılan izlemeler (180 gün).
+    var syncStatusAt: [String: Int64] = [:]
+    var syncDeletions: [SyncDeletion] = []
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
         case titles, events, progress, addons, dismissedContinue, reminders, lists, hidden, following, homeOrder, homeHidden, facts
+        case syncStatusAt, syncDeletions
     }
 
     init(from decoder: Decoder) throws {
@@ -94,6 +98,8 @@ struct AppData: Codable {
         homeOrder = (try? c.decodeIfPresent([String].self, forKey: .homeOrder)) ?? []
         homeHidden = (try? c.decodeIfPresent([String].self, forKey: .homeHidden)) ?? []
         facts = (try? c.decodeIfPresent([String: TitleFacts].self, forKey: .facts)) ?? [:]
+        syncStatusAt = (try? c.decodeIfPresent([String: Int64].self, forKey: .syncStatusAt)) ?? [:]
+        syncDeletions = (try? c.decodeIfPresent([SyncDeletion].self, forKey: .syncDeletions)) ?? []
     }
 }
 

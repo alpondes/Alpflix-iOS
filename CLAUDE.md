@@ -7,6 +7,8 @@ Android yedeğini içe aktarma. 0.6: listeler ve akıllı listeler, tarihli izle
 İlgilenmiyorum, dizi rozetleri, kişi sayfası ve takip, ana sayfa düzeni (Türkiye ve mevsim satırları), takvim ve
 yeni bölüm bildirimi, istatistikler, oynatıcıda altyazı gecikmesi/görünümü, basılı tut 2x, parlaklık/ses kaydırma,
 duraklatınca oyuncular, Wyzie Subs, bir kerelik Trakt içe aktarma (kullanıcı adı + Client ID ya da ZIP).
+0.7: Wi-Fi eşitleme (Android ile aynı protokol, `Sync/`): Bonjour `_alpflix._tcp`, 12 karakterlik eşleştirme kodu,
+AES-GCM şifreli TCP çerçeveleri; kaldığın yer, izlemeler/silmeler, durumlar, İzlemeye devam et kaldırmaları.
 Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)

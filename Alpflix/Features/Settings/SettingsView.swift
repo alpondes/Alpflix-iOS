@@ -37,6 +37,7 @@ struct SettingsView: View {
                 NavigationLink { ProfilesView() } label: { Label(L.profiles, systemImage: "person.2") }
                 NavigationLink(value: LibraryRoute.homeLayout) { Label(L.homeLayout, systemImage: "rectangle.grid.1x2") }
                 NavigationLink(value: LibraryRoute.traktImport) { Label(L.traktImport, systemImage: "square.and.arrow.down") }
+                NavigationLink(value: LibraryRoute.sync) { Label(L.syncTitle, systemImage: "arrow.triangle.2.circlepath") }
             }
             Section(L.settingsAddons) {
                 ForEach(store.addons) { addon in

@@ -66,6 +66,7 @@ final class LibraryStore: ObservableObject {
 
     func setStatus(_ ref: MediaRef, _ status: TitleStatus?, imdbId: String? = nil) {
         mutate { d in
+            d.syncStatusAt[ref.id] = Date().ms
             if status == nil {
                 d.titles[ref.id] = nil
             } else {
@@ -154,15 +155,18 @@ final class LibraryStore: ObservableObject {
                 d.events.append(WatchEvent(tmdbId: ref.tmdbId, type: ref.type, season: season, episode: episode, watchedAt: at))
                 d.progress[PlaybackProgress.key(ref.tmdbId, ref.type, season, episode)] = nil
                 var entry = d.titles[ref.id] ?? TrackedTitle(ref: ref, imdbId: imdbId, status: nil, addedAt: Date())
+                let before = entry.status
                 if ref.type == .movie {
                     entry.status = .COMPLETED
                 } else if entry.status == nil || entry.status == .PLAN_TO_WATCH || entry.status == .ON_HOLD {
                     entry.status = .WATCHING
                 }
+                if entry.status != before { d.syncStatusAt[ref.id] = Date().ms }
                 if let imdbId { entry.imdbId = imdbId }
                 d.titles[ref.id] = entry
             } else {
                 d.events.removeAll { $0.tmdbId == ref.tmdbId && $0.type == ref.type && $0.season == season && $0.episode == episode }
+                Self.noteDeletion(&d, SyncDeletion(tmdbId: ref.tmdbId, type: ref.type.rawValue, season: season, episode: episode, at: Date().ms))
             }
         }
     }
@@ -178,7 +182,10 @@ final class LibraryStore: ObservableObject {
                 d.progress[PlaybackProgress.key(ref.tmdbId, .tv, e.season, e.episode)] = nil
             }
             var entry = d.titles[ref.id] ?? TrackedTitle(ref: ref, imdbId: imdbId, status: nil, addedAt: Date())
-            if entry.status == nil || entry.status == .PLAN_TO_WATCH || entry.status == .ON_HOLD { entry.status = .WATCHING }
+            if entry.status == nil || entry.status == .PLAN_TO_WATCH || entry.status == .ON_HOLD {
+                entry.status = .WATCHING
+                d.syncStatusAt[ref.id] = Date().ms
+            }
             if let imdbId { entry.imdbId = imdbId }
             d.titles[ref.id] = entry
         }
@@ -186,7 +193,103 @@ final class LibraryStore: ObservableObject {
 
     /// Bir sezonun bütün izlemelerini kaldırır.
     func unmarkSeason(_ ref: MediaRef, season: Int) {
-        mutate { d in d.events.removeAll { $0.type == .tv && $0.tmdbId == ref.tmdbId && $0.season == season } }
+        mutate { d in
+            let removed = d.events.filter { $0.type == .tv && $0.tmdbId == ref.tmdbId && $0.season == season }
+            d.events.removeAll { $0.type == .tv && $0.tmdbId == ref.tmdbId && $0.season == season }
+            let now = Date().ms
+            for e in Set(removed.compactMap { $0.episode }) {
+                Self.noteDeletion(&d, SyncDeletion(tmdbId: ref.tmdbId, type: "tv", season: season, episode: e, at: now))
+            }
+        }
+    }
+
+    private static func noteDeletion(_ d: inout AppData, _ deletion: SyncDeletion) {
+        let now = Date().ms
+        d.syncDeletions.removeAll { $0.key == deletion.key || now - $0.at > SyncMerge.keepMs }
+        d.syncDeletions.append(deletion)
+    }
+
+    // MARK: Wi-Fi eşitleme
+
+    /// Etkin profilin eşitleme belgesi.
+    func syncDoc(device: String, deviceName: String, profile: String) -> SyncDoc {
+        var doc = SyncDoc(device: device, deviceName: deviceName, profile: profile)
+        let now = Date().ms
+        doc.progress = data.progress.values.map { p in
+            SyncProgress(tmdbId: p.ref.tmdbId, type: p.ref.type.rawValue, season: p.season, episode: p.episode,
+                         positionMs: p.positionMs, durationMs: p.durationMs, updatedAt: p.updatedAt.ms,
+                         title: p.ref.title, poster: p.ref.posterPath, year: p.ref.year, imdbId: p.imdbId)
+        }
+        doc.events = data.events.map { SyncEvent(tmdbId: $0.tmdbId, type: $0.type.rawValue, season: $0.season, episode: $0.episode, watchedAt: $0.watchedAt.ms) }
+        doc.eventDeletions = data.syncDeletions.filter { now - $0.at <= SyncMerge.keepMs }
+        doc.statuses = data.titles.values.map { t in
+            SyncStatus(tmdbId: t.ref.tmdbId, type: t.ref.type.rawValue, status: t.status?.rawValue, at: data.syncStatusAt[t.ref.id] ?? 0,
+                       title: t.ref.title, poster: t.ref.posterPath, year: t.ref.year, imdbId: t.imdbId)
+        }
+        // Kütüphaneden çıkarılanlar (durum kaldırıldı): öbür cihazda da kalksın.
+        for (key, at) in data.syncStatusAt where data.titles[key] == nil {
+            let parts = key.split(separator: ":")
+            guard parts.count == 2, let id = Int(parts[1]) else { continue }
+            doc.statuses.append(SyncStatus(tmdbId: id, type: String(parts[0]), status: nil, at: at))
+        }
+        doc.dismissed = data.dismissedContinue.map { SyncDismissal(key: $0.key, at: $0.value.ms) }
+        return doc
+    }
+
+    /// Gelen belgeyi uygular; değişen kayıt sayısı.
+    @discardableResult
+    func applySync(_ incoming: SyncDoc, local: SyncDoc) -> Int {
+        let plan = SyncMerge.plan(local: local, incoming: incoming, now: Date().ms)
+        let dismissed = Dictionary(plan.dismissed.map { ($0.key, Date(ms: $0.at)) }, uniquingKeysWith: { a, b in max(a, b) })
+        let dismissedChanged = dismissed.mapValues(\.ms) != data.dismissedContinue.mapValues(\.ms)
+        let deletionsChanged = Set(plan.deletions) != Set(data.syncDeletions)
+        guard plan.changes > 0 || dismissedChanged || deletionsChanged else { return 0 }
+        mutate { d in
+            for p in plan.progressToUpsert {
+                guard let type = MediaType(rawValue: p.type) else { continue }
+                let existing = d.titles["\(p.type):\(p.tmdbId)"]?.ref
+                let ref = existing ?? MediaRef(tmdbId: p.tmdbId, type: type, title: p.title, posterPath: p.poster, backdropPath: nil, year: p.year)
+                let item = PlaybackProgress(ref: ref, imdbId: p.imdbId, season: p.season, episode: p.episode,
+                                            positionMs: p.positionMs, durationMs: p.durationMs, updatedAt: Date(ms: p.updatedAt))
+                d.progress[item.key] = item
+            }
+            for del in plan.deletionsToApply {
+                d.events.removeAll { e in
+                    e.tmdbId == del.tmdbId && e.type.rawValue == del.type && e.season == del.season && e.episode == del.episode && e.watchedAt.ms <= del.at
+                }
+            }
+            for e in plan.eventsToAdd {
+                guard let type = MediaType(rawValue: e.type) else { continue }
+                d.events.append(WatchEvent(tmdbId: e.tmdbId, type: type, season: e.season, episode: e.episode, watchedAt: Date(ms: e.watchedAt)))
+            }
+            for s in plan.statusesToSet {
+                guard let type = MediaType(rawValue: s.type) else { continue }
+                let key = "\(s.type):\(s.tmdbId)"
+                if let status = s.status.flatMap(TitleStatus.init(rawValue:)) {
+                    var entry = d.titles[key] ?? TrackedTitle(
+                        ref: MediaRef(tmdbId: s.tmdbId, type: type, title: s.title, posterPath: s.poster, backdropPath: nil, year: s.year),
+                        imdbId: s.imdbId, status: nil, addedAt: Date()
+                    )
+                    entry.status = status
+                    d.titles[key] = entry
+                } else {
+                    d.titles[key]?.status = nil
+                }
+                d.syncStatusAt[key] = s.at
+            }
+            d.syncDeletions = plan.deletions
+            d.dismissedContinue = dismissed
+        }
+        return plan.changes
+    }
+
+    /// Eşitlemeyi tetikleyen özet: yerel değişiklik olunca değişir.
+    var syncFingerprint: String {
+        let progress = data.progress.values.map(\.updatedAt).max()?.timeIntervalSince1970 ?? 0
+        let events = data.events.map(\.watchedAt).max()?.timeIntervalSince1970 ?? 0
+        let statuses = data.syncStatusAt.values.max() ?? 0
+        let dismissed = data.dismissedContinue.values.max()?.timeIntervalSince1970 ?? 0
+        return "\(data.progress.count)|\(progress)|\(data.events.count)|\(events)|\(statuses)|\(data.syncDeletions.count)|\(data.dismissedContinue.count)|\(dismissed)"
     }
 
     /// Dizinin bütün yayınlanmış bölümleri izlendiyse "Bitti".
@@ -395,6 +498,7 @@ final class LibraryStore: ObservableObject {
                 addedEvents += 1
             }
             for t in titles {
+                d.syncStatusAt[t.ref.id] = Date().ms
                 if var existing = d.titles[t.ref.id] {
                     if existing.status == nil, let status = t.status { existing.status = status }
                     existing.imdbId = existing.imdbId ?? t.imdbId
