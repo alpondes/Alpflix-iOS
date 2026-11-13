@@ -9,6 +9,8 @@ yeni bölüm bildirimi, istatistikler, oynatıcıda altyazı gecikmesi/görünü
 duraklatınca oyuncular, Wyzie Subs, bir kerelik Trakt içe aktarma (kullanıcı adı + Client ID ya da ZIP).
 0.7: Wi-Fi eşitleme (Android ile aynı protokol, `Sync/`): Bonjour `_alpflix._tcp`, 12 karakterlik eşleştirme kodu,
 AES-GCM şifreli TCP çerçeveleri; kaldığın yer, izlemeler/silmeler, durumlar, İzlemeye devam et kaldırmaları.
+0.8 (Android 5.4.0 ile aynı): dosya parmak iziyle sürüme göre altyazı (`VideoHash`), gece modu (VLC ekolayzeri +
+sıkıştırıcı), ses gecikmesi, "Hâlâ izliyor musun?", rastgele bölüm, oynatma bilgisi, iki parmakla yakınlaştırma.
 Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)

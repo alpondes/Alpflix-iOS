@@ -287,6 +287,8 @@ enum SettingsKeys {
     static let tmdbToken = "tmdb_token"
     static let subtitleLanguage = "subtitle_language"
     static let autoPlayNext = "auto_play_next"
+    static let nightMode = "night_mode"
+    static let stillWatchingEpisodes = "still_watching_episodes"
     static let episodeAlerts = "episode_alerts"
     static let wyzieKey = "local_wyzie_key"
     static let subtitleSize = "subtitle_size"

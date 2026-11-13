@@ -19,3 +19,15 @@ enum NextEpisode {
         return aired.first { $0 > furthest && !watched.contains($0) }
     }
 }
+
+/// "Rastgele bölüm" (sitcomlar için): yayınlanmış bölümlerden önce izlenmemişler, hepsi izlendiyse
+/// tümünden biri; son açılan üst üste gelmez.
+enum RandomEpisode {
+    static func pick(aired: [EpisodeRef], watched: Set<EpisodeRef>, avoid: EpisodeRef? = nil) -> EpisodeRef? {
+        guard !aired.isEmpty else { return nil }
+        let unwatched = aired.filter { !watched.contains($0) }
+        var pool = unwatched.isEmpty ? aired : unwatched
+        if let avoid, pool.count > 1 { pool.removeAll { $0 == avoid } }
+        return pool.randomElement()
+    }
+}
