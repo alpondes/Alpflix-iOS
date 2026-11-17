@@ -36,6 +36,10 @@ struct TMDBItem: Decodable, Hashable {
     let releaseDate: String?
     let firstAirDate: String?
     let overview: String?
+    /// Ad kuralı için (0.9): yabancı yapım İngilizce adıyla.
+    let originalLanguage: String?
+    let originalTitle: String?
+    let originalName: String?
 
     /// [fallback]: liste uç noktası türü bildirmiyorsa (movie/popular gibi).
     func ref(fallback: MediaType? = nil) -> MediaRef? {

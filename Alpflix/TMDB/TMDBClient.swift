@@ -20,11 +20,11 @@ actor TMDBClient {
         return user.isEmpty ? BuildSecrets.tmdbToken : user
     }
 
-    private func get<T: Decodable>(_ path: String, _ query: [String: String] = [:]) async throws -> T {
+    private func get<T: Decodable>(_ path: String, _ query: [String: String] = [:], language override: String? = nil) async throws -> T {
         let token = self.token
         guard !token.isEmpty else { throw TMDBError.noToken }
         var components = URLComponents(string: base + path)
-        var items = [URLQueryItem(name: "language", value: language)]
+        var items = [URLQueryItem(name: "language", value: override ?? language)]
         items += query.map { URLQueryItem(name: $0.key, value: $0.value) }
         components?.queryItems = items
         guard let url = components?.url else { throw HTTPError.badURL }
@@ -75,6 +75,77 @@ actor TMDBClient {
     }
 
     /// Bir platforma son gelen yapımlar (Türkiye, abonelik): çıkış tarihine göre, film ve dizi karışık.
+    // MARK: Ad kuralı (Android ile aynı)
+
+    /// en-US adları; kalıcı (yapım adı değişmez).
+    private var englishNames: [String: String] = UserDefaults.standard.dictionary(forKey: "english_titles") as? [String: String] ?? [:]
+
+    /// Türk yapımı özgün (Türkçe) adıyla, İngilizce yapım özgün adıyla, diğerleri İngilizce adıyla;
+    /// İngilizce ad alınamazsa Latin harfli özgün ad, o da yoksa TMDB'nin Türkçe adı.
+    func named(_ item: TMDBItem, fallback: MediaType) async -> MediaRef? {
+        guard var ref = item.ref(fallback: fallback) else { return nil }
+        let original = (ref.type == .movie ? item.originalTitle ?? item.originalName : item.originalName ?? item.originalTitle)?
+            .trimmingCharacters(in: .whitespaces)
+        switch item.originalLanguage ?? "" {
+        case "":
+            break
+        case "tr":
+            if let original, !original.isEmpty { ref.title = original }
+        case "en":
+            if let original, Self.isLatin(original) { ref.title = original }
+        default:
+            if let english = await englishTitle(ref) {
+                ref.title = english
+            } else if let original, Self.isLatin(original) {
+                ref.title = original
+            }
+        }
+        return ref
+    }
+
+    private func englishTitle(_ ref: MediaRef) async -> String? {
+        if let known = englishNames[ref.id] { return known }
+        struct Names: Decodable { let title: String?; let name: String? }
+        let path = ref.type == .movie ? "movie/\(ref.tmdbId)" : "tv/\(ref.tmdbId)"
+        guard let names: Names = try? await get(path, language: "en-US"),
+              let english = (names.title ?? names.name)?.trimmingCharacters(in: .whitespaces),
+              !english.isEmpty, Self.isLatin(english) else { return nil }
+        englishNames[ref.id] = english
+        UserDefaults.standard.set(englishNames, forKey: "english_titles")
+        return english
+    }
+
+    /// Latin harfli mi (Korece, Japonca, Kiril vb. değil).
+    static func isLatin(_ text: String) -> Bool {
+        let letters = text.unicodeScalars.filter { CharacterSet.letters.contains($0) }
+        guard !letters.isEmpty else { return false }
+        return letters.allSatisfy { $0.value < 0x0250 || (0x1E00...0x1EFF).contains($0.value) }
+    }
+
+    /// Platformdaki son çıkanlar (son 90 gün), çıkış tarihiyle; adlar uygulamanın kuralıyla.
+    func providerRecentEntries(_ provider: TMDBProvider) async -> [PlatformAddition] {
+        let today = Date()
+        let from = isoDay(today.addingTimeInterval(-90 * 86400))
+        let until = isoDay(today)
+        async let movies: TMDBPage<TMDBItem>? = try? get("discover/movie", [
+            "with_watch_providers": "\(provider.providerId)", "watch_region": region, "with_watch_monetization_types": "flatrate",
+            "sort_by": "primary_release_date.desc", "primary_release_date.lte": until, "primary_release_date.gte": from,
+        ])
+        async let series: TMDBPage<TMDBItem>? = try? get("discover/tv", [
+            "with_watch_providers": "\(provider.providerId)", "watch_region": region, "with_watch_monetization_types": "flatrate",
+            "sort_by": "first_air_date.desc", "first_air_date.lte": until, "first_air_date.gte": from,
+        ])
+        var result: [PlatformAddition] = []
+        for (page, type) in [(await movies, MediaType.movie), (await series, MediaType.tv)] {
+            for item in page?.results ?? [] where item.posterPath != nil {
+                guard let date = dateOf(type == .movie ? item.releaseDate : item.firstAirDate),
+                      let ref = await named(item, fallback: type) else { continue }
+                result.append(PlatformAddition(ref: ref, date: date, platform: provider))
+            }
+        }
+        return result
+    }
+
     func providerRecent(_ providerId: Int) async throws -> [MediaRef] {
         let today = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
         async let movies: TMDBPage<TMDBItem> = get("discover/movie", [
@@ -119,7 +190,7 @@ actor TMDBClient {
                 "first_air_date.gte": from, "first_air_date.lte": until, "sort_by": "popularity.desc",
             ]) {
                 for item in page.results {
-                    if let ref = item.ref(fallback: .tv), let date = dateOf(item.firstAirDate) {
+                    if let ref = await named(item, fallback: .tv), let date = dateOf(item.firstAirDate) {
                         entries.append(UpcomingEntry(date: date, ref: ref, kind: .newSeries, platform: platform, season: nil, episode: nil))
                     }
                 }
@@ -129,7 +200,7 @@ actor TMDBClient {
                 "air_date.gte": from, "air_date.lte": until, "sort_by": "popularity.desc",
             ])
             for item in (running?.results ?? []).prefix(15) {
-                guard let ref = item.ref(fallback: .tv), !entries.contains(where: { $0.ref.id == ref.id }),
+                guard let ref = await named(item, fallback: .tv), !entries.contains(where: { $0.ref.id == ref.id }),
                       let show = try? await self.detail(.tv, item.id), let next = show.nextEpisodeToAir,
                       let date = dateOf(next.airDate), date >= Calendar.current.startOfDay(for: today) else { continue }
                 let kind: UpcomingKind = next.episodeNumber == 1 && next.seasonNumber > 1 ? .newSeason : .newEpisode
@@ -141,7 +212,7 @@ actor TMDBClient {
             "with_release_type": "4", "release_date.gte": from, "release_date.lte": until, "sort_by": "popularity.desc",
         ]) {
             for item in movies.results.prefix(20) {
-                guard let ref = item.ref(fallback: .movie) else { continue }
+                guard let ref = await named(item, fallback: .movie) else { continue }
                 guard let dates: TMDBReleaseDates = try? await get("movie/\(item.id)/release_dates") else { continue }
                 var digital: [(String, Date, String?)] = []
                 for country in dates.results {

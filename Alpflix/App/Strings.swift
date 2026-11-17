@@ -341,6 +341,26 @@ enum L {
     static func infoKHz(_ value: Double) -> String { String(format: "%.1f kHz", value).replacingOccurrences(of: ".", with: ",") }
     static let zoomReset = "Yakınlaştırmayı sıfırla"
     static let randomEpisode = "Rastgele bölüm"
+    // Platformlar: sekmeler, süzgeç ve sıralama (0.9)
+    static let platformsTabAdded = "Yeni eklenenler"
+    static let platformsTabUpcoming = "Yakında"
+    static let platformsTabTop10 = "Top 10"
+    static func tabCount(_ label: String, _ n: Int) -> String { "\(label) \(n)" }
+    static let allPlatforms = "Tüm platformlar"
+    static let sortTitle = "Ada göre (A–Z)"
+    static let sortNewestFirst = "Yeniden eskiye"
+    static let sortOldest = "Eskiden yeniye"
+    static let sortSoonest = "En yakın tarih önce"
+    static let sortLatest = "En uzak tarih önce"
+    static func sortAccessibility(_ current: String) -> String { "Sıralama: \(current)" }
+    static let addedLegend = "Seçili platformlara son 90 günde gelen yapımlar, platformdaki çıkış tarihiyle."
+    static let noAdditions = "Son 90 günde yeni gelen yapım bulunamadı."
+    static func releasedOn(_ date: String) -> String { "Çıkış \(date)" }
+    static let upcomingHint = "Önümüzdeki 60 gün içinde seçili platformlara gelecekler. Zil simgesiyle çıkış günü hatırlatıcı kurabilirsin."
+    static let typeSeries = "Dizi"
+    static let typeMovie = "Film"
+    static let filterEmpty = "Süzgece uyan yapım yok."
+    static let filterClear = "Süzgeci temizle"
     static let subtitleLater = "Altyazıyı geciktir"
     static let subtitleSize = "Altyazı boyutu"
     static let subtitleColor = "Altyazı rengi"

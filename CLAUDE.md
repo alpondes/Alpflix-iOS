@@ -11,6 +11,9 @@ duraklatınca oyuncular, Wyzie Subs, bir kerelik Trakt içe aktarma (kullanıcı
 AES-GCM şifreli TCP çerçeveleri; kaldığın yer, izlemeler/silmeler, durumlar, İzlemeye devam et kaldırmaları.
 0.8 (Android 5.4.0 ile aynı): dosya parmak iziyle sürüme göre altyazı (`VideoHash`), gece modu (VLC ekolayzeri +
 sıkıştırıcı), ses gecikmesi, "Hâlâ izliyor musun?", rastgele bölüm, oynatma bilgisi, iki parmakla yakınlaştırma.
+0.9 (Android 5.5.0 ile aynı): Platformlar yeni tasarım (sekmeler, platform çoklu süzgeç, tür, tarih/ad sıralaması,
+gün başlıkları); ad kuralı `TMDBClient.named` (Türk yapımı özgün adıyla, yabancı yapım İngilizce; en-US adları kalıcı
+önbellekte) şimdilik Platformlar'da.
 Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)
