@@ -430,6 +430,22 @@ enum L {
     static let syncProblemLocked = "Profil kilitli; PIN girilince eşitlenir."
     static let syncProblemConnection = "Son denemede bağlanılamadı; cihazlar aynı ağda mı?"
 
+    // Dijitale düşenler
+    static let platformsTabDrops = "Dijitale düşenler"
+    static let dropsHint = "Sinemada vizyona girdikten sonra dijitale (kiralık, satın alma ya da platform) gelen filmler. Tarih Türkiye'nin, yoksa ABD'nin."
+    static let dropsRecent = "Son 30 günde dijitalde"
+    static let dropsUpcoming = "Yakında dijitalde"
+    static let dropsEmpty = "Şu an dijitale yeni düşen film bulunamadı."
+    static func dropsTheatrical(_ date: String) -> String { "Sinema: \(date)" }
+    static func dropsDigital(_ date: String) -> String { "Dijitalde: \(date)" }
+    static func dropsGap(_ days: Int) -> String { "Sinemadan \(days) gün sonra" }
+
+    // Öne çıkan
+    static let heroWatch = "İzle"
+    static let heroEpisodes = "Bölümler"
+    static let heroSave = "Listem"
+    static let heroSaved = "Listemde"
+
     static let errorNoToken = "TMDB anahtarı yok. Ayarlar'dan gir."
     static let errorNetwork = "Bağlantı kurulamadı."
     static let retry = "Yeniden dene"

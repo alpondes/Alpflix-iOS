@@ -63,20 +63,24 @@ final class HomeModel: ObservableObject {
         } catch {
             self.error = errorText(error)
         }
-        turkeyPlatforms = (try? await TMDBClient.shared.turkeyPlatformsPopular()) ?? turkeyPlatforms
-        turkishSeries = (try? await TMDBClient.shared.turkish(.tv)) ?? turkishSeries
-        turkishMovies = (try? await TMDBClient.shared.turkish(.movie)) ?? turkishMovies
-        if let theme = SeasonalTheme.current() {
-            seasonalTitle = theme.title
-            if let keyword = theme.keyword {
-                seasonal = (try? await TMDBClient.shared.keywordMovies(keyword)) ?? []
-            } else if let genre = theme.genre {
-                seasonal = (try? await TMDBClient.shared.genreMovies(genre)) ?? []
-            }
-        } else {
-            seasonalTitle = nil
-            seasonal = []
-        }
+        // Ek satırlar aynı anda yüklenir.
+        let theme = SeasonalTheme.current()
+        async let turkey = try? TMDBClient.shared.turkeyPlatformsPopular()
+        async let trSeries = try? TMDBClient.shared.turkish(.tv)
+        async let trMovies = try? TMDBClient.shared.turkish(.movie)
+        async let season = Self.seasonalItems(theme)
+        turkeyPlatforms = await turkey ?? turkeyPlatforms
+        turkishSeries = await trSeries ?? turkishSeries
+        turkishMovies = await trMovies ?? turkishMovies
+        seasonalTitle = theme?.title
+        seasonal = await season ?? []
+    }
+
+    private static func seasonalItems(_ theme: SeasonalTheme?) async -> [MediaRef]? {
+        guard let theme else { return [] }
+        if let keyword = theme.keyword { return try? await TMDBClient.shared.keywordMovies(keyword) }
+        if let genre = theme.genre { return try? await TMDBClient.shared.genreMovies(genre) }
+        return []
     }
 
     /// Takip edilen kişilerin son 90 günde çıkan ya da yakında çıkacak yapımları.
@@ -87,8 +91,8 @@ final class HomeModel: ObservableObject {
         }
         let from = Date().addingTimeInterval(-90 * 86400)
         var found: [(MediaRef, Date)] = []
-        for person in people.prefix(30) {
-            guard let p = try? await TMDBClient.shared.person(person.id) else { continue }
+        let persons: [TMDBPerson?] = await Array(people.prefix(30)).concurrentMap { try? await TMDBClient.shared.person($0.id) }
+        for p in persons.compactMap({ $0 }) {
             let credits = (p.combinedCredits?.cast ?? []) + (p.combinedCredits?.crew ?? []).filter { $0.job == "Director" }
             for credit in credits {
                 guard let ref = credit.ref, let date = dateOf(credit.date), date >= from, ref.posterPath != nil,
@@ -108,8 +112,11 @@ final class HomeModel: ObservableObject {
                                 startMs: p.positionMs, subtitle: code + L.minutesLeft(left), at: p.updatedAt)
         }
         let resuming = Set(items.filter { $0.ref.type == .tv }.map(\.ref.tmdbId))
-        for (ref, at) in store.recentSeries().prefix(20) where !resuming.contains(ref.tmdbId) {
-            guard let detail = try? await TMDBClient.shared.detail(.tv, ref.tmdbId) else { continue }
+        let recent = Array(store.recentSeries().prefix(20)).filter { !resuming.contains($0.0.tmdbId) }
+        // Dizi bilgileri aynı anda; sonra sırayla işlenir.
+        let details: [TMDBDetail?] = await recent.concurrentMap { try? await TMDBClient.shared.detail(.tv, $0.0.tmdbId) }
+        for (index, (ref, at)) in recent.enumerated() {
+            guard let detail = details[index] else { continue }
             let aired = NextEpisode.aired(seasons: detail.regularSeasons, last: detail.lastEpisodeToAir)
             store.refreshSeriesStatus(detail.ref(.tv), aired: aired)
             guard let next = NextEpisode.target(aired: aired, watched: store.watchedEpisodes(ref.tmdbId)) else { continue }
@@ -145,6 +152,10 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
+                // Öne çıkan: trend listesinden görseli olan, gizlenmemiş ilk yapım.
+                if let hero = store.visible(model.trending).first(where: { $0.backdropPath != nil }) {
+                    HeroBanner(ref: hero)
+                }
                 if let error = model.error {
                     MessageView(text: error) { Task { await model.load(force: true) } }
                 }

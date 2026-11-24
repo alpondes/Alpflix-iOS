@@ -12,6 +12,10 @@ enum Theme {
 
     static let posterRadius: CGFloat = 10
     static let posterWidth: CGFloat = 120
+    /// iPad ve geniş ekranda satır afişi.
+    static let posterWidthWide: CGFloat = 156
+    /// İnce kenar (afiş ve görseller zeminden ayrılsın; kartsız, premium görünüm).
+    static let hairline = Color(red: 0xED / 255, green: 0xE8 / 255, blue: 0xE3 / 255).opacity(0.10)
     static let gutter: CGFloat = 16
 
     /// Başlıklar: Archivo (dar, kalın).

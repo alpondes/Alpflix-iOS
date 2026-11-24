@@ -11,13 +11,14 @@ struct PlatformAddition: Identifiable, Hashable {
 
 /// Platformlar sayfasının bölümleri (0.9): her biri ayrı, derli toplu bir liste.
 enum PlatformTab: String, CaseIterable, Identifiable {
-    case added, upcoming, top10
+    case added, upcoming, drops, top10
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .added: return L.platformsTabAdded
         case .upcoming: return L.platformsTabUpcoming
+        case .drops: return L.platformsTabDrops
         case .top10: return L.platformsTabTop10
         }
     }
@@ -110,6 +111,8 @@ final class PlatformsModel: ObservableObject {
     /// nil: yükleniyor.
     @Published var additions: [PlatformAddition]?
     @Published var upcoming: [UpcomingEntry]?
+    /// Dijitale düşenler; nil: yükleniyor.
+    @Published var drops: (recent: [DigitalDrop], upcoming: [DigitalDrop])?
     @Published var tab: PlatformTab = .added
     /// Platform süzgeci (boş: hepsi) ve tür; bütün sekmelerde ortak.
     @Published var selected: Set<Int> = []
@@ -130,11 +133,16 @@ final class PlatformsModel: ObservableObject {
         }
         platforms = picked
         selected = selected.filter { id in picked.contains { $0.providerId == id } }
-        var found: [PlatformAddition] = []
-        for p in picked { found += await TMDBClient.shared.providerRecentEntries(p) }
-        additions = found
-        upcoming = await TMDBClient.shared.upcoming(picked)
-        let top = try? await NetflixTop10Store.shared.load(force: force)
+        Task { drops = await TMDBClient.shared.digitalDrops() }
+        // Yeni eklenenler, yakında ve Top 10 aynı anda; her biri gelince ekrana düşer.
+        async let topTask = try? NetflixTop10Store.shared.load(force: force)
+        async let upcomingTask = TMDBClient.shared.upcoming(picked)
+        let perPlatform: [[PlatformAddition]] = await picked.concurrentMap(limit: 4) { p in
+            await TMDBClient.shared.providerRecentEntries(p)
+        }
+        additions = perPlatform.flatMap { $0 }
+        upcoming = await upcomingTask
+        let top = await topTask
         if let t = top {
             films = t.films
             tv = t.tv
@@ -188,18 +196,14 @@ struct PlatformsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker(L.platforms, selection: $model.tab) {
-                ForEach(model.tabs) { tab in Text(tabTitle(tab)).tag(tab) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, Theme.gutter)
-            .padding(.top, 8)
-            if model.tab != .top10 { filterBar }
+            tabBar
+            if model.tab == .added || model.tab == .upcoming { filterBar }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
                     switch model.tab {
                     case .added: addedList
                     case .upcoming: upcomingList
+                    case .drops: dropsList
                     case .top10: top10List
                     }
                     Text(L.platformsCredit)
@@ -217,12 +221,45 @@ struct PlatformsView: View {
         .task { await model.load() }
     }
 
+    /// Sekmeler: yatay kayan, seçili olanın altı çizili (yazılar kesilmez; telefonda da sığar).
+    private var tabBar: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 22) {
+                    ForEach(model.tabs) { tab in
+                        let selected = model.tab == tab
+                        Button {
+                            model.tab = tab
+                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(tab, anchor: .center) }
+                        } label: {
+                            VStack(spacing: 6) {
+                                Text(tabTitle(tab))
+                                    .font(Theme.body(15).weight(selected ? .semibold : .regular))
+                                    .foregroundStyle(selected ? Theme.text : Theme.textSecondary)
+                                    .fixedSize()
+                                Capsule()
+                                    .fill(selected ? Theme.accent : Color.clear)
+                                    .frame(height: 2)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .id(tab)
+                        .accessibilityAddTraits(selected ? .isSelected : [])
+                    }
+                }
+                .padding(.horizontal, Theme.gutter)
+                .padding(.top, 10)
+            }
+        }
+    }
+
     private func tabTitle(_ tab: PlatformTab) -> String {
         let count: Int?
         switch tab {
         case .added: count = model.addedFeed()?.count
         case .upcoming: count = model.upcomingFeed()?.count
-        case .top10: count = nil
+        case .drops, .top10: count = nil
         }
         guard let count, count > 0 else { return tab.label }
         return L.tabCount(tab.label, count)
@@ -351,6 +388,49 @@ struct PlatformsView: View {
         } else {
             loading
         }
+    }
+
+    /// Dijitale düşenler: sinemadan sonra dijitale gelen filmler, son 30 gün ve yakında.
+    @ViewBuilder
+    private var dropsList: some View {
+        Text(L.dropsHint).font(Theme.body(13)).foregroundStyle(Theme.textSecondary)
+        if let drops = model.drops {
+            if drops.recent.isEmpty && drops.upcoming.isEmpty {
+                Text(L.dropsEmpty).font(Theme.body(15)).foregroundStyle(Theme.textSecondary)
+            }
+            if !drops.recent.isEmpty {
+                Text(L.dropsRecent).font(Theme.body(16).weight(.semibold)).foregroundStyle(Theme.text).padding(.top, 12)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(drops.recent) { dropRow($0) }
+            }
+            if !drops.upcoming.isEmpty {
+                Text(L.dropsUpcoming).font(Theme.body(16).weight(.semibold)).foregroundStyle(Theme.text).padding(.top, 12)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(drops.upcoming) { dropRow($0) }
+            }
+        } else {
+            loading
+        }
+    }
+
+    private func dropRow(_ drop: DigitalDrop) -> some View {
+        NavigationLink(value: drop.ref) {
+            HStack(spacing: 12) {
+                PosterImage(path: drop.ref.posterPath, title: drop.ref.title)
+                    .frame(width: 56)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(drop.ref.title).font(Theme.body(15).weight(.semibold)).foregroundStyle(Theme.text).lineLimit(2)
+                    Text(L.dropsTheatrical(shortDate(drop.window.theatrical))).font(Theme.body(12)).foregroundStyle(Theme.textSecondary)
+                    Text(L.dropsDigital(shortDate(drop.window.digital))).font(Theme.body(13).weight(.semibold)).foregroundStyle(Theme.accent)
+                    Text([L.dropsGap(drop.window.gapDays), drop.window.note].compactMap { $0 }.joined(separator: " · "))
+                        .font(Theme.body(12)).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder

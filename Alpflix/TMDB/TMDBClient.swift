@@ -135,15 +135,18 @@ actor TMDBClient {
             "with_watch_providers": "\(provider.providerId)", "watch_region": region, "with_watch_monetization_types": "flatrate",
             "sort_by": "first_air_date.desc", "first_air_date.lte": until, "first_air_date.gte": from,
         ])
-        var result: [PlatformAddition] = []
+        var pairs: [(TMDBItem, MediaType)] = []
         for (page, type) in [(await movies, MediaType.movie), (await series, MediaType.tv)] {
-            for item in page?.results ?? [] where item.posterPath != nil {
-                guard let date = dateOf(type == .movie ? item.releaseDate : item.firstAirDate),
-                      let ref = await named(item, fallback: type) else { continue }
-                result.append(PlatformAddition(ref: ref, date: date, platform: provider))
-            }
+            for item in page?.results ?? [] where item.posterPath != nil { pairs.append((item, type)) }
         }
-        return result
+        // Adlar (gerekirse İngilizce ad isteği) paralel.
+        let named: [PlatformAddition?] = await pairs.concurrentMap { pair in
+            let (item, type) = pair
+            guard let date = dateOf(type == .movie ? item.releaseDate : item.firstAirDate),
+                  let ref = await self.named(item, fallback: type) else { return nil }
+            return PlatformAddition(ref: ref, date: date, platform: provider)
+        }
+        return named.compactMap { $0 }
     }
 
     func providerRecent(_ providerId: Int) async throws -> [MediaRef] {
@@ -182,38 +185,61 @@ actor TMDBClient {
         let today = Date()
         let from = isoDay(today)
         let until = isoDay(today.addingTimeInterval(Double(days) * 86400))
+        // Platformlar paralel; her platformun kendi listesi, sonra birleştirilir.
+        let perPlatform: [[UpcomingEntry]] = await platforms.concurrentMap(limit: 4) { platform in
+            await self.upcomingFor(platform, from: from, until: until, today: today)
+        }
         var entries: [UpcomingEntry] = []
-        for platform in platforms {
+        for list in perPlatform {
+            for entry in list where !entries.contains(where: { $0.ref.id == entry.ref.id && $0.platform?.providerId == entry.platform?.providerId }) {
+                entries.append(entry)
+            }
+        }
+        entries += await digitalUpcoming(platforms, from: from, until: until, today: today)
+        return entries.sorted { $0.date < $1.date }
+    }
+
+    private func upcomingFor(_ platform: TMDBProvider, from: String, until: String, today: Date) async -> [UpcomingEntry] {
+        var entries: [UpcomingEntry] = []
+        do {
             let networks = PlatformNetworks.ids(platform.providerName)
             if !networks.isEmpty, let page: TMDBPage<TMDBItem> = try? await get("discover/tv", [
                 "with_networks": networks.map { String($0) }.joined(separator: "|"),
                 "first_air_date.gte": from, "first_air_date.lte": until, "sort_by": "popularity.desc",
             ]) {
-                for item in page.results {
-                    if let ref = await named(item, fallback: .tv), let date = dateOf(item.firstAirDate) {
-                        entries.append(UpcomingEntry(date: date, ref: ref, kind: .newSeries, platform: platform, season: nil, episode: nil))
-                    }
+                let series: [UpcomingEntry?] = await page.results.concurrentMap { item in
+                    guard let ref = await self.named(item, fallback: .tv), let date = dateOf(item.firstAirDate) else { return nil }
+                    return UpcomingEntry(date: date, ref: ref, kind: .newSeries, platform: platform, season: nil, episode: nil)
                 }
+                entries += series.compactMap { $0 }
             }
             let running: TMDBPage<TMDBItem>? = try? await get("discover/tv", [
                 "with_watch_providers": "\(platform.providerId)", "watch_region": region, "with_watch_monetization_types": "flatrate",
                 "air_date.gte": from, "air_date.lte": until, "sort_by": "popularity.desc",
             ])
-            for item in (running?.results ?? []).prefix(15) {
-                guard let ref = await named(item, fallback: .tv), !entries.contains(where: { $0.ref.id == ref.id }),
+            let known = Set(entries.map(\.ref.id))
+            let running15 = Array((running?.results ?? []).prefix(15))
+            let found: [UpcomingEntry?] = await running15.concurrentMap { item in
+                guard let ref = await self.named(item, fallback: .tv), !known.contains(ref.id),
                       let show = try? await self.detail(.tv, item.id), let next = show.nextEpisodeToAir,
-                      let date = dateOf(next.airDate), date >= Calendar.current.startOfDay(for: today) else { continue }
+                      let date = dateOf(next.airDate), date >= Calendar.current.startOfDay(for: today) else { return nil }
                 let kind: UpcomingKind = next.episodeNumber == 1 && next.seasonNumber > 1 ? .newSeason : .newEpisode
-                entries.append(UpcomingEntry(date: date, ref: ref, kind: kind, platform: platform, season: next.seasonNumber, episode: next.episodeNumber))
+                return UpcomingEntry(date: date, ref: ref, kind: kind, platform: platform, season: next.seasonNumber, episode: next.episodeNumber)
             }
+            entries += found.compactMap { $0 }
         }
-        // Dijitale gelecek filmler; platform, dijital çıkış notundan.
+        return entries
+    }
+
+    /// Dijitale gelecek filmler; platform, dijital çıkış notundan.
+    private func digitalUpcoming(_ platforms: [TMDBProvider], from: String, until: String, today: Date) async -> [UpcomingEntry] {
+        var entries: [UpcomingEntry] = []
         if let movies: TMDBPage<TMDBItem> = try? await get("discover/movie", [
             "with_release_type": "4", "release_date.gte": from, "release_date.lte": until, "sort_by": "popularity.desc",
         ]) {
-            for item in movies.results.prefix(20) {
-                guard let ref = await named(item, fallback: .movie) else { continue }
-                guard let dates: TMDBReleaseDates = try? await get("movie/\(item.id)/release_dates") else { continue }
+            let found: [UpcomingEntry?] = await Array(movies.results.prefix(20)).concurrentMap { item in
+                guard let ref = await self.named(item, fallback: .movie) else { return nil }
+                guard let dates: TMDBReleaseDates = try? await self.get("movie/\(item.id)/release_dates") else { return nil }
                 var digital: [(String, Date, String?)] = []
                 for country in dates.results {
                     for entry in country.releaseDates where entry.type == 4 {
@@ -222,13 +248,14 @@ actor TMDBClient {
                         }
                     }
                 }
-                guard !digital.isEmpty else { continue }
+                guard !digital.isEmpty else { return nil }
                 let matched = platforms.first { p in digital.contains { PlatformNetworks.noteMatches($0.2, p.providerName) } }
-                let date = digital.first(where: { $0.0 == region })?.1 ?? digital.map { $0.1 }.min() ?? today
-                entries.append(UpcomingEntry(date: date, ref: ref, kind: .digitalMovie, platform: matched, season: nil, episode: nil))
+                let date = digital.first(where: { $0.0 == self.region })?.1 ?? digital.map { $0.1 }.min() ?? today
+                return UpcomingEntry(date: date, ref: ref, kind: .digitalMovie, platform: matched, season: nil, episode: nil)
             }
+            entries += found.compactMap { $0 }
         }
-        return entries.sorted { $0.date < $1.date }
+        return entries
     }
 
     // MARK: Akıllı liste, Türkiye ve mevsim satırları
@@ -307,6 +334,52 @@ actor TMDBClient {
         struct Found: Decodable { let movieResults: [TMDBItem]; let tvResults: [TMDBItem] }
         let found: Found = try await get("find/\(imdb)", ["external_source": "imdb_id"])
         return found.movieResults.first?.ref(fallback: .movie) ?? found.tvResults.first?.ref(fallback: .tv)
+    }
+
+    // MARK: Dijitale düşenler
+
+    private var dropsCache: (at: Date, value: (recent: [DigitalDrop], upcoming: [DigitalDrop]))?
+
+    /// ABD ve Türkiye'de son/önümüzdeki 30 günde dijital çıkışı olan popüler filmler; her birinin çıkış
+    /// kayıtlarından sinema ve dijital tarihi. 6 saat bellekte.
+    func digitalDrops() async -> (recent: [DigitalDrop], upcoming: [DigitalDrop]) {
+        if let cache = dropsCache, Date().timeIntervalSince(cache.at) < 6 * 3600 { return cache.value }
+        let today = Date()
+        let from = isoDay(today.addingTimeInterval(-Double(DigitalDrops.windowDays) * 86400))
+        let until = isoDay(today.addingTimeInterval(Double(DigitalDrops.windowDays) * 86400))
+        var candidates: [TMDBItem] = []
+        for region in ["US", "TR"] {
+            for page in 1...2 {
+                let result: TMDBPage<TMDBItem>? = try? await get("discover/movie", [
+                    "region": region, "with_release_type": "4", "release_date.gte": from, "release_date.lte": until,
+                    "sort_by": "popularity.desc", "include_adult": "false", "page": "\(page)",
+                ])
+                for item in result?.results ?? [] where !candidates.contains(where: { $0.id == item.id }) { candidates.append(item) }
+            }
+        }
+        let drops = await withTaskGroup(of: DigitalDrop?.self) { group in
+            for item in candidates.prefix(60) {
+                guard let ref = item.ref(fallback: .movie) else { continue }
+                group.addTask { await self.drop(ref) }
+            }
+            var all: [DigitalDrop] = []
+            for await drop in group { if let drop { all.append(drop) } }
+            return all
+        }
+        let value = DigitalDrops.split(drops, today: today)
+        dropsCache = (Date(), value)
+        return value
+    }
+
+    private func drop(_ ref: MediaRef) async -> DigitalDrop? {
+        guard let dates: TMDBReleaseDates = try? await get("movie/\(ref.tmdbId)/release_dates") else { return nil }
+        let entries = dates.results.flatMap { country in
+            country.releaseDates.compactMap { r -> DigitalDrops.Entry? in
+                guard let date = dateOf(r.releaseDate) else { return nil }
+                return DigitalDrops.Entry(country: country.iso31661, type: r.type, date: date, note: r.note)
+            }
+        }
+        return DigitalDrops.window(entries).map { DigitalDrop(ref: ref, window: $0) }
     }
 
     // MARK: Ayrıntı

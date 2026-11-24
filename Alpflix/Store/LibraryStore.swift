@@ -117,10 +117,10 @@ final class LibraryStore: ObservableObject {
 
     /// Eksik afiş ve adları TMDB'den tamamlar (ana sayfa açılınca, arka planda).
     func fillMissingPosters() async {
-        for ref in refsMissingPoster() {
-            if let detail = try? await TMDBClient.shared.detail(ref.type, ref.tmdbId) {
-                updateRef(detail.ref(ref.type))
-            }
+        let refs = refsMissingPoster()
+        let details: [TMDBDetail?] = await refs.concurrentMap { try? await TMDBClient.shared.detail($0.type, $0.tmdbId) }
+        for (ref, detail) in zip(refs, details) {
+            if let detail { updateRef(detail.ref(ref.type)) }
         }
     }
 

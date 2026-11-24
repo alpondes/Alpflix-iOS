@@ -14,6 +14,10 @@ sıkıştırıcı), ses gecikmesi, "Hâlâ izliyor musun?", rastgele bölüm, oy
 0.9 (Android 5.5.0 ile aynı): Platformlar yeni tasarım (sekmeler, platform çoklu süzgeç, tür, tarih/ad sıralaması,
 gün başlıkları); ad kuralı `TMDBClient.named` (Türk yapımı özgün adıyla, yabancı yapım İngilizce; en-US adları kalıcı
 önbellekte) şimdilik Platformlar'da.
+1.0 (Android 6.0.0 ile aynı): sinematik sade tasarım (ana sayfada öne çıkan `HeroBanner`, afişlerde ince kenar,
+iPad'de geniş afiş ve okunur genişlikte yapım sayfası), Platformlar'da Dijitale düşenler sekmesi (`DigitalDrops`,
+sinemadan dijitale; son 30 gün ve yakında), ağ istekleri `concurrentMap` ile paralel (Platformlar, ana sayfa,
+takvim, takip, afiş tamamlama).
 Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)

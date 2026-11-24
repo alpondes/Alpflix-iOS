@@ -23,9 +23,17 @@ enum EpisodeCalendar {
         let from = today.addingTimeInterval(-7 * 86400)
         let until = today.addingTimeInterval(60 * 86400)
         let series = store.data.titles.values.filter { $0.ref.type == .tv && $0.status.map(statuses.contains) == true }
+        // Diziler aynı anda (en çok 6), sonuçlar birleştirilir.
+        let perSeries: [[CalendarEntry]] = await Array(series).concurrentMap { title in
+            await entriesFor(title, from: from, until: until)
+        }
+        return perSeries.flatMap { $0 }.sorted { $0.date != $1.date ? $0.date < $1.date : $0.ref.title < $1.ref.title }
+    }
+
+    private static func entriesFor(_ title: TrackedTitle, from: Date, until: Date) async -> [CalendarEntry] {
         var entries: [CalendarEntry] = []
-        for title in series {
-            guard let d = try? await TMDBClient.shared.detail(.tv, title.ref.tmdbId) else { continue }
+        do {
+            guard let d = try? await TMDBClient.shared.detail(.tv, title.ref.tmdbId) else { return [] }
             let ref = d.ref(.tv)
             var seasons = Set<Int>()
             if let next = d.nextEpisodeToAir, let date = dateOf(next.airDate), date <= until { seasons.insert(next.seasonNumber) }
@@ -39,7 +47,7 @@ enum EpisodeCalendar {
                 }
             }
         }
-        return entries.sorted { $0.date != $1.date ? $0.date < $1.date : $0.ref.title < $1.ref.title }
+        return entries
     }
 }
 

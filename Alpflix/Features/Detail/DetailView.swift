@@ -45,6 +45,7 @@ struct DetailView: View {
     @EnvironmentObject private var store: LibraryStore
     @Environment(\.openURL) private var openURL
     @StateObject private var model = DetailModel()
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @ObservedObject private var downloads = DownloadStore.shared
     @State private var confirmSeason = false
     @State private var notice: String?
@@ -154,6 +155,8 @@ struct DetailView: View {
                     Text(overview).font(Theme.body(16)).foregroundStyle(Theme.text).fixedSize(horizontal: false, vertical: true)
                 }
             }
+            // iPad'de metin ve düğmeler okunur genişlikte kalır.
+            .frame(maxWidth: sizeClass == .regular ? 860 : .infinity, alignment: .leading)
             .padding(.horizontal, Theme.gutter)
             if ref.type == .tv { seasons(d, full) }
             cast(d)
@@ -163,19 +166,23 @@ struct DetailView: View {
     }
 
     private func header(_ d: TMDBDetail) -> some View {
-        ZStack(alignment: .bottomLeading) {
+        let height: CGFloat = sizeClass == .regular ? 420 : 280
+        return ZStack(alignment: .bottomLeading) {
             RemoteImage(url: TMDBImage.backdrop(d.backdropPath)) { image in
                 image.resizable().aspectRatio(contentMode: .fill)
             } placeholder: {
                 Theme.surface
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 230)
+            .frame(height: height)
             .clipped()
-            // Okunabilirlik için görselden zemine geçiş.
-            LinearGradient(colors: [.clear, Theme.background], startPoint: .center, endPoint: .bottom)
+            // Okunabilirlik için görselden zemine yumuşak geçiş.
+            LinearGradient(
+                stops: [.init(color: .clear, location: 0.4), .init(color: Theme.background.opacity(0.8), location: 0.78), .init(color: Theme.background, location: 1)],
+                startPoint: .top, endPoint: .bottom
+            )
         }
-        .frame(height: 230)
+        .frame(height: height)
     }
 
     private func meta(_ d: TMDBDetail) -> String {
