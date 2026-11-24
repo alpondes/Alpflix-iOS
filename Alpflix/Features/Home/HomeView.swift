@@ -144,6 +144,9 @@ struct HomeView: View {
     @StateObject private var model = HomeModel()
     /// "İzlemeye devam et"te basılı tutup Detaylar: yapımın sayfası.
     @State private var detailsRef: MediaRef?
+    @ObservedObject private var network = NetworkStatus.shared
+    @ObservedObject private var downloads = DownloadStore.shared
+    @State private var playingLocal: PlayRequest?
 
     private var continueKey: String {
         "\(profiles.activeId)|\(store.data.events.count)|\(store.data.progress.count)|\(store.data.dismissedContinue.count)|\(store.data.progress.values.map(\.updatedAt).max()?.timeIntervalSince1970 ?? 0)"
@@ -152,11 +155,13 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
+                // İnternetsiz: indirilenler en üstte, tek dokunuşla oynar.
+                if !network.online { offlineSection }
                 // Öne çıkan: trend listesinden görseli olan, gizlenmemiş ilk yapım.
-                if let hero = store.visible(model.trending).first(where: { $0.backdropPath != nil }) {
+                if network.online, let hero = store.visible(model.trending).first(where: { $0.backdropPath != nil }) {
                     HeroBanner(ref: hero)
                 }
-                if let error = model.error {
+                if let error = model.error, network.online {
                     MessageView(text: error) { Task { await model.load(force: true) } }
                 }
                 ForEach(store.homeRows.filter { !store.isHomeRowHidden($0) }) { row in
@@ -182,6 +187,11 @@ struct HomeView: View {
         }
         .task { await model.load() }
         .navigationDestination(item: $detailsRef) { DetailView(ref: $0) }
+        .fullScreenCover(item: $playingLocal) { request in PlayerView(request: request).environmentObject(store) }
+        .onChange(of: network.online) { _, online in
+            // Bağlantı gelince boş kalan satırlar yeniden yüklenir.
+            if online { Task { await model.load(force: true) } }
+        }
         .task(id: store.data.following.count) { await model.loadFollowing(store.following) }
         .task { await EpisodeAlerts.refreshIfNeeded(store) }
         .task { await store.fillMissingPosters() }
@@ -190,6 +200,42 @@ struct HomeView: View {
 }
 
 extension HomeView {
+    /// Çevrimdışı bölüm: uyarı, İndirilenler bağlantısı ve inmiş yapımlar (dokununca kaldığı yerden oynar).
+    @ViewBuilder
+    var offlineSection: some View {
+        let ready = downloads.items.filter { $0.state == .done }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "wifi.slash").foregroundStyle(Theme.textSecondary)
+                Text(L.offlineBanner).font(Theme.body(14)).foregroundStyle(Theme.textSecondary)
+                Spacer(minLength: 0)
+                NavigationLink(value: LibraryRoute.downloads) {
+                    Text(L.downloads).font(Theme.body(14).weight(.semibold)).foregroundStyle(Theme.accent)
+                }
+            }
+            .padding(.horizontal, Theme.gutter)
+            if ready.isEmpty {
+                Text(L.offlineNoDownloads).font(Theme.body(13)).foregroundStyle(Theme.textSecondary).padding(.horizontal, Theme.gutter)
+            } else {
+                SectionTitle(text: L.downloads)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 14) {
+                        ForEach(ready) { item in
+                            Button {
+                                let start = store.progress(item.ref, season: item.season, episode: item.episode)?.positionMs ?? 0
+                                playingLocal = downloads.playRequest(item, startMs: start)
+                            } label: {
+                                PosterCard(ref: item.ref, subtitle: item.season.flatMap { s in item.episode.map { episodeCode(s, $0) } } ?? item.ref.year.map(String.init))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, Theme.gutter)
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     func rowView(_ row: HomeRow) -> some View {
         switch row {

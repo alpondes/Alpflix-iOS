@@ -5,6 +5,7 @@ struct DownloadsView: View {
     @EnvironmentObject private var store: LibraryStore
     @ObservedObject private var downloads = DownloadStore.shared
     @State private var playing: PlayRequest?
+    @AppStorage(SettingsKeys.downloadQuality) private var quality = DownloadQuality.balanced.rawValue
 
     var body: some View {
         List {
@@ -16,6 +17,15 @@ struct DownloadsView: View {
                     Text(L.downloadSpace(Self.bytes(downloads.usedBytes), Self.bytes(downloads.freeBytes)))
                         .font(Theme.mono(12))
                         .foregroundStyle(Theme.textSecondary)
+                }
+                .listRowBackground(Theme.background)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L.downloadQuality).font(Theme.body(15)).foregroundStyle(Theme.text)
+                    Picker(L.downloadQuality, selection: $quality) {
+                        ForEach(DownloadQuality.allCases) { Text($0.label).tag($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(L.downloadQualityHint).font(Theme.body(12)).foregroundStyle(Theme.textSecondary)
                 }
                 .listRowBackground(Theme.background)
             }

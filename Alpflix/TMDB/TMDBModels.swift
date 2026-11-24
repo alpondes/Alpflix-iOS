@@ -26,7 +26,7 @@ struct TMDBPage<T: Decodable>: Decodable {
     let totalPages: Int?
 }
 
-struct TMDBItem: Decodable, Hashable {
+struct TMDBItem: Codable, Hashable {
     let id: Int
     let mediaType: String?
     let title: String?
@@ -69,7 +69,7 @@ func dateOf(_ value: String?) -> Date? {
     return f.date(from: String(value.prefix(10)))
 }
 
-struct TMDBGenre: Decodable, Hashable, Identifiable {
+struct TMDBGenre: Codable, Hashable, Identifiable {
     let id: Int
     let name: String
 }
@@ -78,30 +78,30 @@ struct TMDBGenreList: Decodable {
     let genres: [TMDBGenre]
 }
 
-struct TMDBCastMember: Decodable, Hashable, Identifiable {
+struct TMDBCastMember: Codable, Hashable, Identifiable {
     let id: Int
     let name: String
     let character: String?
     let profilePath: String?
 }
 
-struct TMDBCredits: Decodable {
+struct TMDBCredits: Codable {
     let cast: [TMDBCastMember]?
     var crew: [TMDBCrewMember]? = nil
 }
 
-struct TMDBCrewMember: Decodable, Hashable {
+struct TMDBCrewMember: Codable, Hashable {
     let id: Int
     let name: String
     let job: String?
     let profilePath: String?
 }
 
-struct TMDBExternalIds: Decodable {
+struct TMDBExternalIds: Codable {
     let imdbId: String?
 }
 
-struct TMDBSeasonSummary: Decodable, Hashable, Identifiable {
+struct TMDBSeasonSummary: Codable, Hashable, Identifiable {
     let seasonNumber: Int
     let episodeCount: Int?
     let name: String?
@@ -111,7 +111,7 @@ struct TMDBSeasonSummary: Decodable, Hashable, Identifiable {
     var id: Int { seasonNumber }
 }
 
-struct TMDBEpisode: Decodable, Hashable, Identifiable {
+struct TMDBEpisode: Codable, Hashable, Identifiable {
     let seasonNumber: Int
     let episodeNumber: Int
     let name: String?
@@ -128,12 +128,12 @@ struct TMDBEpisode: Decodable, Hashable, Identifiable {
     }
 }
 
-struct TMDBSeason: Decodable {
+struct TMDBSeason: Codable {
     let seasonNumber: Int?
     let episodes: [TMDBEpisode]
 }
 
-struct TMDBDetail: Decodable {
+struct TMDBDetail: Codable {
     let id: Int
     let title: String?
     let name: String?
@@ -169,11 +169,11 @@ struct TMDBDetail: Decodable {
     }
 }
 
-struct TMDBVideos: Decodable {
+struct TMDBVideos: Codable {
     let results: [TMDBVideo]
 }
 
-struct TMDBVideo: Decodable, Hashable {
+struct TMDBVideo: Codable, Hashable {
     let key: String
     let site: String?
     let type: String?
@@ -273,3 +273,6 @@ struct TMDBPersonCredit: Decodable, Hashable {
         return MediaRef(tmdbId: id, type: type, title: label, posterPath: posterPath, backdropPath: backdropPath, year: yearOf(date))
     }
 }
+
+/// Disk önbelleği için (yapım ayrıntısındaki öneriler sayfası).
+extension TMDBPage: Encodable where T: Encodable {}

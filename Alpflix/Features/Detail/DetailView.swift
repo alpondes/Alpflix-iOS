@@ -111,11 +111,12 @@ struct DetailView: View {
         }
     }
 
-    private func downloadSeason(_ d: TMDBDetail, _ full: MediaRef) {
+    private func downloadSeason(_ d: TMDBDetail, _ full: MediaRef, onlyUnwatched: Bool) {
         guard let imdb = d.imdb, !imdb.isEmpty else { return }
         let episodes = model.episodes
+        let skip = onlyUnwatched ? store.watchedEpisodes(ref.tmdbId) : []
         Task {
-            let result = await downloads.enqueueSeason(ref: full, imdbId: imdb, episodes: episodes, addons: store.addons)
+            let result = await downloads.enqueueSeason(ref: full, imdbId: imdb, episodes: episodes, addons: store.addons, skip: skip)
             notice = result.added + result.missing == 0 ? L.downloadSeasonNothing : L.downloadSeasonDone(result.added, result.missing)
         }
     }
@@ -396,7 +397,12 @@ struct DetailView: View {
                 .buttonStyle(.plain)
                 .padding(.horizontal, Theme.gutter)
                 .confirmationDialog(L.downloadSeasonConfirm(model.season, seasonToDownload.count), isPresented: $confirmSeason, titleVisibility: .visible) {
-                    Button(L.downloadSeason) { downloadSeason(d, full) }
+                    Button(L.downloadSeasonCount(seasonToDownload.count)) { downloadSeason(d, full, onlyUnwatched: false) }
+                    // İzlenen bölümler hariç (yalnız izlenmemişler).
+                    let unwatched = seasonToDownload.filter { !store.watchedEpisodes(ref.tmdbId).contains(EpisodeRef(season: $0.seasonNumber, episode: $0.episodeNumber)) }.count
+                    if unwatched > 0 && unwatched < seasonToDownload.count {
+                        Button(L.downloadUnwatchedCount(unwatched)) { downloadSeason(d, full, onlyUnwatched: true) }
+                    }
                     Button(L.cancel, role: .cancel) {}
                 }
             }

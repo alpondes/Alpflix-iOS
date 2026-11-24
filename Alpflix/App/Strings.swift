@@ -446,6 +446,18 @@ enum L {
     static let heroSave = "Listem"
     static let heroSaved = "Listemde"
 
+    // İndirme kalitesi ve izlenmemişler
+    static let downloadQuality = "İndirme kalitesi"
+    static let qualitySmall = "Küçük"
+    static let qualityBalanced = "Dengeli"
+    static let qualityBest = "En iyi"
+    static let downloadQualityHint = "Sezon indirirken kaynak buna göre seçilir. Küçük: 720p'ye kadar, bölüm ≤1,2 GB. Dengeli: 1080p'ye kadar, bölüm ≤2,5 GB. İkisinde de aynı kaliteyi daha az yerde tutan HEVC/AV1 sürümleri önce."
+    static func downloadSeasonCount(_ n: Int) -> String { "Sezonu indir (\(n) bölüm)" }
+    static func downloadUnwatchedCount(_ n: Int) -> String { "İzlemediklerimi indir (\(n) bölüm)" }
+
+    static let offlineBanner = "Çevrimdışısın. İndirdiklerin internetsiz oynar."
+    static let offlineNoDownloads = "İndirilmiş yapım yok. İnternet varken kaynak listesinden ya da dizide Sezonu indir ile indirebilirsin."
+
     static let errorNoToken = "TMDB anahtarı yok. Ayarlar'dan gir."
     static let errorNetwork = "Bağlantı kurulamadı."
     static let retry = "Yeniden dene"

@@ -18,6 +18,9 @@ gün başlıkları); ad kuralı `TMDBClient.named` (Türk yapımı özgün adıy
 iPad'de geniş afiş ve okunur genişlikte yapım sayfası), Platformlar'da Dijitale düşenler sekmesi (`DigitalDrops`,
 sinemadan dijitale; son 30 gün ve yakında), ağ istekleri `concurrentMap` ile paralel (Platformlar, ana sayfa,
 takvim, takip, afiş tamamlama).
+1.1 (Android 6.1.0 ile aynı): İzlemediklerimi indir, indirme kalitesi (`DownloadPick`: Küçük/Dengeli/En iyi, HEVC/AV1
+önce, boyut sınırı), internetsiz açılış (TMDB ayrıntı/sezon `tmdb-cache` diske; çevrimdışıyken ana sayfada indirilenler,
+`NetworkStatus`).
 Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)

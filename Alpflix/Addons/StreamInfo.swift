@@ -29,6 +29,7 @@ struct StreamInfo: Hashable {
         if lower.contains("dolby vision") || lower.contains(" dv") || lower.contains("dovi") { tags.append("DV") }
         if lower.contains("hdr") { tags.append("HDR") }
         if lower.contains("hevc") || lower.contains("x265") || lower.contains("h265") { tags.append("HEVC") }
+        if lower.contains("av1") { tags.append("AV1") }
         if lower.contains("atmos") { tags.append("Atmos") }
         if lower.contains("remux") { tags.append("REMUX") }
         let cached = text.contains("+]") || text.contains("⚡") || lower.contains("[rd+") || lower.contains("cached")

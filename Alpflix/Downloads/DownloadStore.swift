@@ -173,9 +173,11 @@ final class DownloadStore: ObservableObject {
 
     /// Sezonun yayınlanmış ve henüz indirilmemiş bölümleri: her biri için kaynak seçilir (ilk seçilenin
     /// sürüm grubu önce, sonra hazır/yüksek çözünürlüklü), sırayla eklenir. (eklenen, bulunamayan) döner.
-    func enqueueSeason(ref: MediaRef, imdbId: String, episodes: [TMDBEpisode], addons: [InstalledAddon]) async -> (added: Int, missing: Int) {
+    func enqueueSeason(ref: MediaRef, imdbId: String, episodes: [TMDBEpisode], addons: [InstalledAddon],
+                       skip watched: Set<EpisodeRef> = []) async -> (added: Int, missing: Int) {
         let wanted = episodes.filter { e in
-            e.hasAired && (item(ref, season: e.seasonNumber, episode: e.episodeNumber).map { $0.state == .failed } ?? true)
+            e.hasAired && !watched.contains(EpisodeRef(season: e.seasonNumber, episode: e.episodeNumber))
+                && (item(ref, season: e.seasonNumber, episode: e.episodeNumber).map { $0.state == .failed } ?? true)
         }
         guard !wanted.isEmpty else { return (0, 0) }
         seasonJob = (0, wanted.count)
@@ -186,10 +188,8 @@ final class DownloadStore: ObservableObject {
         for (index, e) in wanted.enumerated() {
             let id = AddonClient.stremioId(imdb: imdbId, season: e.seasonNumber, episode: e.episodeNumber)
             let candidates = await AddonClient.allStreams(addons, type: "series", id: id)
-                .filter { $0.playableURL?.scheme?.hasPrefix("http") == true && !$0.info.torrentOnly }
-            let pick = candidates.first { group != nil && $0.stream.behaviorHints?.bingeGroup == group }
-                ?? candidates.first { $0.info.cached }
-                ?? candidates.first
+            // İndirme kalitesine göre (HEVC/AV1 ve boyut sınırı); ilk seçilenin sürüm grubu önce.
+            let pick = DownloadPick.choose(candidates, quality: DownloadQuality.current, isEpisode: true, group: group)
             if let pick, enqueue(ref: ref, imdbId: imdbId, season: e.seasonNumber, episode: e.episodeNumber,
                                  episodeTitle: e.name, candidate: pick, addons: addons) == nil {
                 added += 1

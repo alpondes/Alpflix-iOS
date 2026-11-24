@@ -20,6 +20,31 @@ actor TMDBClient {
         return user.isEmpty ? BuildSecrets.tmdbToken : user
     }
 
+    /// Yapım ve sezon yanıtları diske de yazılır; bağlantı yokken (ya da hata verirse) oradan okunur:
+    /// daha önce açılan sayfalar ve indirilen yapımlar internetsiz de görünür.
+    private static let diskDir: URL = {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("tmdb-cache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var copy = dir
+        try? copy.setResourceValues(values)
+        return dir
+    }()
+
+    private func cached<T: Codable>(_ key: String, _ load: () async throws -> T) async throws -> T {
+        let file = Self.diskDir.appendingPathComponent(key.replacingOccurrences(of: ":", with: "_") + ".json")
+        do {
+            let value = try await load()
+            if let data = try? JSONEncoder().encode(value) { try? data.write(to: file, options: .atomic) }
+            return value
+        } catch {
+            if let data = try? Data(contentsOf: file), let value = try? JSONDecoder().decode(T.self, from: data) { return value }
+            throw error
+        }
+    }
+
     private func get<T: Decodable>(_ path: String, _ query: [String: String] = [:], language override: String? = nil) async throws -> T {
         let token = self.token
         guard !token.isEmpty else { throw TMDBError.noToken }
@@ -387,10 +412,12 @@ actor TMDBClient {
     func detail(_ type: MediaType, _ id: Int, fresh: Bool = false) async throws -> TMDBDetail {
         let key = "\(type.rawValue):\(id)"
         if !fresh, let cached = detailCache[key] { return cached }
-        let detail: TMDBDetail = try await get(
-            "\(type.rawValue)/\(id)",
-            ["append_to_response": "credits,external_ids,recommendations,videos", "include_video_language": "tr,en,null"]
-        )
+        let detail: TMDBDetail = try await cached("detail-\(key)") {
+            try await get(
+                "\(type.rawValue)/\(id)",
+                ["append_to_response": "credits,external_ids,recommendations,videos", "include_video_language": "tr,en,null"]
+            )
+        }
         detailCache[key] = detail
         return detail
     }
@@ -406,7 +433,7 @@ actor TMDBClient {
     func season(_ tvId: Int, _ number: Int) async throws -> TMDBSeason {
         let key = "\(tvId):\(number)"
         if let cached = seasonCache[key] { return cached }
-        let season: TMDBSeason = try await get("tv/\(tvId)/season/\(number)")
+        let season: TMDBSeason = try await cached("season-\(key)") { try await get("tv/\(tvId)/season/\(number)") }
         seasonCache[key] = season
         return season
     }
@@ -440,4 +467,5 @@ enum SettingsKeys {
     static let subtitleBold = "subtitle_bold"
     static let traktClientId = "local_trakt_client_id"
     static let traktUser = "trakt_user"
+    static let downloadQuality = "download_quality"
 }
