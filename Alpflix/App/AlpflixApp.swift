@@ -24,11 +24,15 @@ struct AlpflixApp: App {
         nav.titleTextAttributes = [.foregroundColor: text, .font: Self.archivo(size: 17, weight: 650)]
         UINavigationBar.appearance().standardAppearance = nav
         UINavigationBar.appearance().scrollEdgeAppearance = nav
-        let tab = UITabBarAppearance()
-        tab.configureWithOpaqueBackground()
-        tab.backgroundColor = UIColor(red: 0x19 / 255, green: 0x16 / 255, blue: 0x1B / 255, alpha: 1)
-        UITabBar.appearance().standardAppearance = tab
-        UITabBar.appearance().scrollEdgeAppearance = tab
+        // iOS 26'da sekme çubuğu sistemin yüzen cam çubuğu (2.0); öncesinde yarı saydam koyu çubuk.
+        if #unavailable(iOS 26.0) {
+            let tab = UITabBarAppearance()
+            tab.configureWithDefaultBackground()
+            tab.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+            tab.backgroundColor = UIColor(red: 0x19 / 255, green: 0x16 / 255, blue: 0x1B / 255, alpha: 0.72)
+            UITabBar.appearance().standardAppearance = tab
+            UITabBar.appearance().scrollEdgeAppearance = tab
+        }
     }
 
     /// Archivo değişken yazı tipi, istenen kalınlıkta ("wght" ekseni); yoksa sistemin kalını.
@@ -81,7 +85,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 /// Kaynak listesine gidiş: yapım, bölüm ve (devam ediliyorsa) başlangıç konumu.
 /// Platformlar sayfası. Değer tabanlı rota: oradan açılan yapım sayfası aynı yığına eklenir
 /// (görünüm tabanlı bağlantıdan değer tabanlı geçiş SwiftUI'da sayfayı geri attırıyordu).
-struct PlatformsRoute: Hashable {}
+struct PlatformsRoute: Hashable {
+    /// Açılacak bölüm (panodan gelince).
+    var tab: PlatformTab? = nil
+}
 
 /// Kütüphane > İndirilenler.
 struct DownloadsRoute: Hashable {}
@@ -147,7 +154,7 @@ struct RootView: View {
                 .background(Theme.background.ignoresSafeArea())
                 .navigationDestination(for: MediaRef.self) { DetailView(ref: $0) }
                 .navigationDestination(for: SourcesRoute.self) { SourcesView(route: $0) }
-                .navigationDestination(for: PlatformsRoute.self) { _ in PlatformsView() }
+                .navigationDestination(for: PlatformsRoute.self) { PlatformsView(initialTab: $0.tab) }
                 .navigationDestination(for: DownloadsRoute.self) { _ in DownloadsView() }
                 .navigationDestination(for: PersonRoute.self) { PersonView(personId: $0.id) }
                 .navigationDestination(for: LibraryRoute.self) { route in

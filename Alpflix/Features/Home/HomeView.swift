@@ -161,6 +161,8 @@ struct HomeView: View {
                 if network.online, let hero = store.visible(model.trending).first(where: { $0.backdropPath != nil }) {
                     HeroBanner(ref: hero)
                 }
+                // Pano: her şey bir arada (2.0).
+                HomeDashboard()
                 if let error = model.error, network.online {
                     MessageView(text: error) { Task { await model.load(force: true) } }
                 }

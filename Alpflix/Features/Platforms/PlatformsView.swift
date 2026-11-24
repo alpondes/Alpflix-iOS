@@ -193,6 +193,9 @@ final class PlatformsModel: ObservableObject {
 struct PlatformsView: View {
     @EnvironmentObject private var store: LibraryStore
     @StateObject private var model = PlatformsModel()
+    /// Panodan gelince açılacak bölüm; bir kez uygulanır.
+    var initialTab: PlatformTab? = nil
+    @State private var appliedInitial = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -218,30 +221,41 @@ struct PlatformsView: View {
         }
         .background(Theme.background.ignoresSafeArea())
         .navigationTitle(L.platforms)
+        .onAppear {
+            if !appliedInitial, let initialTab {
+                model.tab = initialTab
+                appliedInitial = true
+            }
+        }
         .task { await model.load() }
     }
 
-    /// Sekmeler: yatay kayan, seçili olanın altı çizili (yazılar kesilmez; telefonda da sığar).
+    /// Bölümler (2.0): sayılı kutular, yatay kayan; seçili kutu vurgu renginde.
     private var tabBar: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 22) {
+                HStack(spacing: 8) {
                     ForEach(model.tabs) { tab in
                         let selected = model.tab == tab
                         Button {
                             model.tab = tab
                             withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(tab, anchor: .center) }
                         } label: {
-                            VStack(spacing: 6) {
-                                Text(tabTitle(tab))
-                                    .font(Theme.body(15).weight(selected ? .semibold : .regular))
-                                    .foregroundStyle(selected ? Theme.text : Theme.textSecondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(tabCount(tab).map(String.init) ?? "—")
+                                    .font(Theme.mono(24).weight(.semibold))
+                                Text(tab.label)
+                                    .font(Theme.body(13).weight(.semibold))
+                                    .lineLimit(1)
                                     .fixedSize()
-                                Capsule()
-                                    .fill(selected ? Theme.accent : Color.clear)
-                                    .frame(height: 2)
                             }
-                            .contentShape(Rectangle())
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .frame(minWidth: 108, alignment: .leading)
+                            .foregroundStyle(selected ? Theme.onAccent : Theme.text)
+                            .background(selected ? Theme.accent : Theme.tile, in: RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
+                            .overlay { if !selected { GlassBorder() } }
+                            .contentShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
                         }
                         .buttonStyle(.plain)
                         .id(tab)
@@ -254,15 +268,13 @@ struct PlatformsView: View {
         }
     }
 
-    private func tabTitle(_ tab: PlatformTab) -> String {
-        let count: Int?
+    private func tabCount(_ tab: PlatformTab) -> Int? {
         switch tab {
-        case .added: count = model.addedFeed()?.count
-        case .upcoming: count = model.upcomingFeed()?.count
-        case .drops, .top10: count = nil
+        case .added: return model.addedFeed()?.count
+        case .upcoming: return model.upcomingFeed()?.count
+        case .drops: return model.drops.map { $0.recent.count + $0.upcoming.count }
+        case .top10: return 10
         }
-        guard let count, count > 0 else { return tab.label }
-        return L.tabCount(tab.label, count)
     }
 
     // MARK: Süzgeç
@@ -427,7 +439,9 @@ struct PlatformsView: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 6)
+            .padding(10)
+            .background(Theme.tile, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(GlassBorder(radius: 16))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -503,15 +517,19 @@ struct PlatformsView: View {
             .buttonStyle(.plain)
             trailing()
         }
-        .padding(8)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+        .padding(10)
+        .background(Theme.tile, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(GlassBorder(radius: 16))
     }
 
     @ViewBuilder
     private func rankRow(_ entry: Top10Entry, _ category: Top10Category) -> some View {
         let match = model.matches["\(category.rawValue)|\(entry.row.title)"]
         let row = HStack(spacing: 12) {
-            Text("\(entry.row.rank)").font(Theme.mono(28).weight(.semibold)).foregroundStyle(Theme.accent).frame(width: 40)
+            Text("\(entry.row.rank)")
+                .font(Theme.title(38))
+                .foregroundStyle(entry.row.rank == 1 ? Theme.accent : Theme.textSecondary)
+                .frame(width: 46)
             PosterImage(path: match?.posterPath, title: entry.row.label).frame(width: 52)
             VStack(alignment: .leading, spacing: 4) {
                 Text(match?.title ?? entry.row.label).font(Theme.body(15).weight(.semibold)).foregroundStyle(Theme.text).lineLimit(2)
@@ -519,8 +537,9 @@ struct PlatformsView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(8)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+        .padding(10)
+        .background(Theme.tile, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(GlassBorder(radius: 16))
         if let match {
             NavigationLink(value: match) { row }.buttonStyle(.plain)
         } else {

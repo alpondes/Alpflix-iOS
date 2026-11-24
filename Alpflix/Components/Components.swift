@@ -204,10 +204,11 @@ struct HeroBanner: View {
                         heroButton(saved ? L.heroSaved : L.heroSave, saved ? "checkmark" : "plus", primary: false)
                     }
                     NavigationLink(value: ref) {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 22))
+                        Image(systemName: "info")
+                            .font(.system(size: 17, weight: .semibold))
                             .foregroundStyle(Theme.text)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 46, height: 46)
+                            .glassCapsule()
                     }
                     .accessibilityLabel(ref.type == .tv ? L.seriesDetails : L.movieDetails)
                 }
@@ -220,13 +221,22 @@ struct HeroBanner: View {
         .frame(height: height)
     }
 
+    /// Birincil: açık renkli dolu hap; ikincil: cam hap (2.0).
+    @ViewBuilder
     private func heroButton(_ title: String, _ icon: String, primary: Bool) -> some View {
-        Label(title, systemImage: icon)
+        let label = Label(title, systemImage: icon)
             .font(Theme.body(15).weight(.semibold))
             .lineLimit(1)
-            .padding(.horizontal, 18)
-            .frame(height: 44)
-            .background(primary ? Theme.accent : Theme.surfaceHigh.opacity(0.9), in: Capsule())
-            .foregroundStyle(primary ? Theme.onAccent : Theme.text)
+            .padding(.horizontal, 20)
+            .frame(height: 46)
+        if primary {
+            label
+                .background(Theme.text, in: Capsule())
+                .foregroundStyle(Theme.background)
+        } else {
+            label
+                .foregroundStyle(Theme.text)
+                .glassCapsule()
+        }
     }
 }

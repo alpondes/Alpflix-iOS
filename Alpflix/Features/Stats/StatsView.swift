@@ -102,11 +102,12 @@ struct StatsView: View {
     @EnvironmentObject private var store: LibraryStore
     @State private var period: StatsPeriod = .year
     @State private var filling = false
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         let summary = StatsSummary.make(store, period: period)
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: Theme.tileGap) {
                 Picker("", selection: $period) {
                     ForEach(StatsPeriod.allCases) { Text($0.label).tag($0) }
                 }
@@ -121,65 +122,83 @@ struct StatsView: View {
                 }
                 totals(summary)
                 if summary.bars.contains(where: { $0.hours > 0 }) {
-                    SectionTitle(text: L.statsHours)
-                    Chart(summary.bars) { bar in
-                        BarMark(x: .value("", bar.label), y: .value(L.statsHoursAxis, bar.hours))
-                            .foregroundStyle(Theme.accent)
-                            .cornerRadius(3)
-                    }
-                    .chartXAxis {
-                        AxisMarks { _ in AxisValueLabel().font(Theme.mono(9)).foregroundStyle(Theme.textSecondary) }
-                    }
-                    .chartYAxis {
-                        AxisMarks { _ in
-                            AxisGridLine().foregroundStyle(Theme.surfaceHigh)
-                            AxisValueLabel().font(Theme.mono(10)).foregroundStyle(Theme.textSecondary)
+                    BentoTile(padding: 18) {
+                        TileLabel(text: L.statsHours)
+                        Chart(summary.bars) { bar in
+                            BarMark(x: .value("", bar.label), y: .value(L.statsHoursAxis, bar.hours))
+                                .foregroundStyle(Theme.accent)
+                                .cornerRadius(3)
                         }
+                        .chartXAxis {
+                            AxisMarks { _ in AxisValueLabel().font(Theme.mono(9)).foregroundStyle(Theme.textSecondary) }
+                        }
+                        .chartYAxis {
+                            AxisMarks { _ in
+                                AxisGridLine().foregroundStyle(Theme.surfaceHigh)
+                                AxisValueLabel().font(Theme.mono(10)).foregroundStyle(Theme.textSecondary)
+                            }
+                        }
+                        .frame(height: 180)
                     }
-                    .frame(height: 180)
                     .padding(.horizontal, Theme.gutter)
                 }
                 if !summary.genres.isEmpty {
-                    SectionTitle(text: L.statsGenres)
-                    let maxMinutes = Double(max(1, summary.genres.first?.minutes ?? 1))
-                    VStack(spacing: 8) {
-                        ForEach(summary.genres) { share in
-                            let minutes = share.minutes
-                            HStack(spacing: 10) {
-                                Text(share.name).font(Theme.body(14)).foregroundStyle(Theme.text).frame(width: 110, alignment: .leading)
-                                GeometryReader { geo in
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .fill(Theme.accent)
-                                        .frame(width: max(4, geo.size.width * Double(minutes) / maxMinutes))
+                    BentoTile(padding: 18) {
+                        TileLabel(text: L.statsGenres)
+                        let maxMinutes = Double(max(1, summary.genres.first?.minutes ?? 1))
+                        VStack(spacing: 10) {
+                            ForEach(summary.genres) { share in
+                                let minutes = share.minutes
+                                HStack(spacing: 10) {
+                                    Text(share.name).font(Theme.body(14)).foregroundStyle(Theme.text).frame(width: 110, alignment: .leading)
+                                    GeometryReader { geo in
+                                        ZStack(alignment: .leading) {
+                                            Capsule().fill(Theme.surfaceHigh)
+                                            Capsule()
+                                                .fill(Theme.accent)
+                                                .frame(width: max(6, geo.size.width * Double(minutes) / maxMinutes))
+                                        }
+                                    }
+                                    .frame(height: 6)
+                                    Text(hoursText(minutes)).font(Theme.mono(12)).foregroundStyle(Theme.textSecondary).frame(width: 64, alignment: .trailing)
                                 }
-                                .frame(height: 10)
-                                Text(hoursText(minutes)).font(Theme.mono(12)).foregroundStyle(Theme.textSecondary).frame(width: 64, alignment: .trailing)
                             }
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
                 }
                 if !summary.topSeries.isEmpty {
-                    SectionTitle(text: L.statsTopSeries)
-                    VStack(spacing: 10) {
-                        ForEach(summary.topSeries) { item in
-                            NavigationLink(value: item.ref) {
-                                HStack {
-                                    Text(item.ref.title).font(Theme.body(15)).foregroundStyle(Theme.text).lineLimit(1)
-                                    Spacer()
-                                    Text(L.statsEpisodes(item.episodes)).font(Theme.mono(12)).foregroundStyle(Theme.textSecondary)
+                    BentoTile(padding: 18) {
+                        TileLabel(text: L.statsTopSeries)
+                        VStack(spacing: 12) {
+                            ForEach(Array(summary.topSeries.enumerated()), id: \.element.id) { index, item in
+                                NavigationLink(value: item.ref) {
+                                    HStack(spacing: 12) {
+                                        Text("\(index + 1)")
+                                            .font(Theme.title(26))
+                                            .foregroundStyle(index == 0 ? Theme.accent : Theme.textSecondary)
+                                            .frame(width: 30)
+                                        PosterImage(path: item.ref.posterPath, title: item.ref.title, size: "w185").frame(width: 36)
+                                        Text(item.ref.title).font(Theme.body(15)).foregroundStyle(Theme.text).lineLimit(1)
+                                        Spacer()
+                                        Text(L.statsEpisodes(item.episodes)).font(Theme.mono(12)).foregroundStyle(Theme.textSecondary)
+                                    }
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal, Theme.gutter)
                 }
                 if let busiest = summary.busiestDay {
-                    Text(L.statsBusiestDay(SeriesBadges.shortDate(busiest.0), hoursText(busiest.1)))
-                        .font(Theme.body(13))
-                        .foregroundStyle(Theme.textSecondary)
-                        .padding(.horizontal, Theme.gutter)
+                    BentoTile {
+                        TileLabel(text: L.dashBusiest)
+                        Text(L.statsBusiestDay(SeriesBadges.shortDate(busiest.0), hoursText(busiest.1)))
+                            .font(Theme.body(15))
+                            .foregroundStyle(Theme.text)
+                    }
+                    .padding(.horizontal, Theme.gutter)
                 }
                 if summary.movies + summary.episodes == 0 {
                     MessageView(text: L.statsEmpty)
@@ -192,9 +211,11 @@ struct StatsView: View {
         .task { await fillFacts() }
     }
 
+    /// Büyük toplam süre kutusu (vurgulu) ve üç sayı kutusu; iPad'de tek sıra.
     private func totals(_ s: StatsSummary) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            tile(hoursText(s.minutes), L.statsTotalTime)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: Theme.tileGap), count: sizeClass == .regular ? 4 : 2)
+        return LazyVGrid(columns: columns, spacing: Theme.tileGap) {
+            tile(hoursText(s.minutes), L.statsTotalTime, accent: true)
             tile("\(s.movies)", L.statsMovies)
             tile("\(s.episodes)", L.statsEpisodesTitle)
             tile("\(s.series)", L.statsSeries)
@@ -202,14 +223,11 @@ struct StatsView: View {
         .padding(.horizontal, Theme.gutter)
     }
 
-    private func tile(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(value).font(Theme.mono(24).weight(.semibold)).foregroundStyle(Theme.text)
-            Text(label).font(Theme.body(13)).foregroundStyle(Theme.textSecondary)
+    private func tile(_ value: String, _ label: String, accent: Bool = false) -> some View {
+        BentoTile(accent: accent) {
+            TileLabel(text: label, accent: accent)
+            Text(value).font(Theme.mono(30).weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 10))
     }
 
     private func hoursText(_ minutes: Int) -> String {

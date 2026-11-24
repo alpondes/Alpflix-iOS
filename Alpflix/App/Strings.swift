@@ -464,4 +464,15 @@ enum L {
     static let ok = "Tamam"
     static let cancel = "Vazgeç"
     static let delete = "Sil"
+
+    // 2.0: ana sayfa panosu
+    static let dashTonight = "Bu akşam"
+    static let dashTonightNone = "Bugün yeni bölüm yok"
+    static let dashDrops = "Dijitale düştü"
+    static func dashDropsCount(_ n: Int) -> String { "Son 30 günde \(n) film" }
+    static let dashWeek = "Bu hafta"
+    static let dashTop = "Netflix · 1 numara"
+    static let dashMonth = "Bu ay"
+    static func dashHours(_ h: Int) -> String { "\(h) sa" }
+    static let dashBusiest = "En yoğun gün"
 }

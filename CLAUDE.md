@@ -21,6 +21,10 @@ takvim, takip, afiş tamamlama).
 1.1 (Android 6.1.0 ile aynı): İzlemediklerimi indir, indirme kalitesi (`DownloadPick`: Küçük/Dengeli/En iyi, HEVC/AV1
 önce, boyut sınırı), internetsiz açılış (TMDB ayrıntı/sezon `tmdb-cache` diske; çevrimdışıyken ana sayfada indirilenler,
 `NetworkStatus`).
+2.0 (Android 7.0.0 ile aynı): pano düzeni — ana sayfada `HomeDashboard` (bu akşam, dijitale düştü, bu hafta, Netflix 1
+numara, İzleyeceklerim, bu ay), `Components/Bento.swift` (`BentoTile`, `TileLabel`, `GlassBorder`, `glassCapsule`: iOS 26'da
+Liquid Glass, öncesinde ince malzeme); iOS 26'da sistemin yüzen cam sekme çubuğu; İstatistikler ve Platformlar kutulu
+(Platformlar'da sayılı bölüm kutuları, `PlatformsRoute(tab:)`).
 Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)
@@ -31,7 +35,7 @@ Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
   Eklenti adresleri arayüzde maskelenir (`maskedUrl`), hata metnine ve log'a yazılmaz.
 - Türkçe arayüz; metinler `App/Strings.swift` (`L`) içinde, görünümlerde sabit metin yok.
 - Tasarım: `App/Theme.swift` (zemin #121014, metin #EDE8E3, vurgu #F2784B; Archivo / Atkinson Hyperlegible
-  Next / IBM Plex Mono, fontlar `Resources/Fonts`). Saf siyah/beyaz, mor-mavi gradyan, buzlu cam yok.
+  Next / IBM Plex Mono, fontlar `Resources/Fonts`). Saf siyah/beyaz, mor-mavi gradyan yok. Cam yalnız görselin üstündeki düğmelerde ve sekme çubuğunda (kullanıcı kararı, 2.0).
 
 ## Derleme
 - Mac yok; depo herkese açık, GitHub Actions'ın Mac makineleri ücretsiz:

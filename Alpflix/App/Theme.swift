@@ -17,6 +17,10 @@ enum Theme {
     /// İnce kenar (afiş ve görseller zeminden ayrılsın; kartsız, premium görünüm).
     static let hairline = Color(red: 0xED / 255, green: 0xE8 / 255, blue: 0xE3 / 255).opacity(0.10)
     static let gutter: CGFloat = 16
+    /// 2.0 pano kutuları: biraz yükseltilmiş zemin ve 20 pt köşe.
+    static let tile = Color(red: 0x19 / 255, green: 0x16 / 255, blue: 0x1B / 255)
+    static let tileRadius: CGFloat = 20
+    static let tileGap: CGFloat = 10
 
     /// Başlıklar: Archivo (dar, kalın).
     static func title(_ size: CGFloat) -> Font { .custom("Archivo", size: size).weight(.bold) }
