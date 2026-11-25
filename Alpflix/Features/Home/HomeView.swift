@@ -153,36 +153,35 @@ struct HomeView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                // İnternetsiz: indirilenler en üstte, tek dokunuşla oynar.
-                if !network.online { offlineSection }
-                // Öne çıkan: trend listesinden görseli olan, gizlenmemiş ilk yapım.
-                if network.online, let hero = store.visible(model.trending).first(where: { $0.backdropPath != nil }) {
-                    HeroBanner(ref: hero)
+        // Öne çıkan görsel durum çubuğunun altına kadar uzanır; başlık çubuğu yerine kendi üst satırımız (2.1).
+        GeometryReader { geo in
+            let top = geo.safeAreaInsets.top
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    let hero = network.online ? store.visible(model.trending).first(where: { $0.backdropPath != nil }) : nil
+                    if let hero {
+                        HeroBanner(ref: hero, topInset: top) { HomeTopButtons(glass: true) }
+                    } else {
+                        homeHeader.padding(.top, top + 8)
+                    }
+                    // İnternetsiz: indirilenler en üstte, tek dokunuşla oynar.
+                    if !network.online { offlineSection }
+                    // Pano: her şey bir arada (2.0).
+                    HomeDashboard()
+                    if let error = model.error, network.online {
+                        MessageView(text: error) { Task { await model.load(force: true) } }
+                    }
+                    ForEach(store.homeRows.filter { !store.isHomeRowHidden($0) }) { row in
+                        rowView(row)
+                    }
                 }
-                // Pano: her şey bir arada (2.0).
-                HomeDashboard()
-                if let error = model.error, network.online {
-                    MessageView(text: error) { Task { await model.load(force: true) } }
-                }
-                ForEach(store.homeRows.filter { !store.isHomeRowHidden($0) }) { row in
-                    rowView(row)
-                }
+                .frame(width: geo.size.width)
+                .padding(.bottom, 16)
             }
-            .padding(.vertical, 16)
+            .ignoresSafeArea(edges: .top)
         }
         .navigationTitle(L.tabHome)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                NavigationLink(value: LibraryRoute.calendar) { Image(systemName: "calendar") }
-                    .accessibilityLabel(L.calendar)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink { ProfilesView() } label: { ProfileAvatar(profile: profiles.active, size: 30) }
-                    .accessibilityLabel(L.profiles)
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .refreshable {
             await model.load(force: true)
             await model.refreshContinue(store)
@@ -202,6 +201,25 @@ struct HomeView: View {
 }
 
 extension HomeView {
+    /// Görsel yokken (yükleniyor, anahtar yok, çevrimdışı) üst satır: tarih, başlık, takvim ve profil.
+    var homeHeader: some View {
+        HStack(alignment: .bottom) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Self.todayText).font(Theme.mono(11)).foregroundStyle(Theme.textSecondary)
+                Text(L.tabHome).font(Theme.title(30)).foregroundStyle(Theme.text)
+            }
+            Spacer(minLength: 8)
+            HomeTopButtons(glass: false)
+        }
+        .padding(.horizontal, Theme.gutter)
+    }
+
+    private static var todayText: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "tr_TR")
+        f.dateFormat = "EEEE · d MMMM"
+        return f.string(from: Date()).uppercaseTr
+    }
     /// Çevrimdışı bölüm: uyarı, İndirilenler bağlantısı ve inmiş yapımlar (dokununca kaldığı yerden oynar).
     @ViewBuilder
     var offlineSection: some View {
@@ -287,6 +305,44 @@ struct ContinueRow: View {
                 }
                 .padding(.horizontal, Theme.gutter)
             }
+        }
+    }
+}
+
+/// Ana sayfanın üst köşesindeki takvim ve profil düğmeleri; görselin üstündeyken cam daireler.
+struct HomeTopButtons: View {
+    var glass: Bool
+    @EnvironmentObject private var profiles: ProfileStore
+
+    var body: some View {
+        HStack(spacing: 10) {
+            NavigationLink(value: LibraryRoute.calendar) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .frame(width: 42, height: 42)
+                    .modifier(GlassCircle(enabled: glass))
+            }
+            .accessibilityLabel(L.calendar)
+            NavigationLink { ProfilesView() } label: {
+                ProfileAvatar(profile: profiles.active, size: 32)
+                    .frame(width: 42, height: 42)
+                    .modifier(GlassCircle(enabled: glass))
+            }
+            .accessibilityLabel(L.profiles)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct GlassCircle: ViewModifier {
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.glassCapsule()
+        } else {
+            content.background(Theme.tile, in: Circle()).overlay(GlassBorder(radius: 21))
         }
     }
 }

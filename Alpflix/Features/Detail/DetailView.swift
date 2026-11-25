@@ -169,14 +169,7 @@ struct DetailView: View {
     private func header(_ d: TMDBDetail) -> some View {
         let height: CGFloat = sizeClass == .regular ? 420 : 280
         return ZStack(alignment: .bottomLeading) {
-            RemoteImage(url: TMDBImage.backdrop(d.backdropPath)) { image in
-                image.resizable().aspectRatio(contentMode: .fill)
-            } placeholder: {
-                Theme.surface
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .clipped()
+            BackdropImage(url: TMDBImage.backdrop(d.backdropPath), height: height)
             // Okunabilirlik için görselden zemine yumuşak geçiş.
             LinearGradient(
                 stops: [.init(color: .clear, location: 0.4), .init(color: Theme.background.opacity(0.8), location: 0.78), .init(color: Theme.background, location: 1)],

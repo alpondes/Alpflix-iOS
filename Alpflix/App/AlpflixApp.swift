@@ -16,14 +16,20 @@ struct AlpflixApp: App {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         let background = UIColor(red: 0x12 / 255, green: 0x10 / 255, blue: 0x14 / 255, alpha: 1)
         let text = UIColor(red: 0xED / 255, green: 0xE8 / 255, blue: 0xE3 / 255, alpha: 1)
-        let nav = UINavigationBarAppearance()
-        nav.configureWithOpaqueBackground()
-        nav.backgroundColor = background
-        nav.shadowColor = .clear
-        nav.largeTitleTextAttributes = [.foregroundColor: text, .font: Self.archivo(size: 32, weight: 700)]
-        nav.titleTextAttributes = [.foregroundColor: text, .font: Self.archivo(size: 17, weight: 650)]
-        UINavigationBar.appearance().standardAppearance = nav
-        UINavigationBar.appearance().scrollEdgeAppearance = nav
+        // iOS 26'da özel görünüm başlıkları hiç çizdirmiyordu (2.1): orada sistemin cam çubuğu, yalnız metin rengi.
+        if #available(iOS 26.0, *) {
+            UINavigationBar.appearance().largeTitleTextAttributes = [.foregroundColor: text]
+            UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: text]
+        } else {
+            let nav = UINavigationBarAppearance()
+            nav.configureWithOpaqueBackground()
+            nav.backgroundColor = background
+            nav.shadowColor = .clear
+            nav.largeTitleTextAttributes = [.foregroundColor: text, .font: Self.archivo(size: 32, weight: 700)]
+            nav.titleTextAttributes = [.foregroundColor: text, .font: Self.archivo(size: 17, weight: 650)]
+            UINavigationBar.appearance().standardAppearance = nav
+            UINavigationBar.appearance().scrollEdgeAppearance = nav
+        }
         // iOS 26'da sekme çubuğu sistemin yüzen cam çubuğu (2.0); öncesinde yarı saydam koyu çubuk.
         if #unavailable(iOS 26.0) {
             let tab = UITabBarAppearance()

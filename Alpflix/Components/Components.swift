@@ -157,35 +157,59 @@ func errorText(_ error: Error) -> String {
     return L.errorNetwork
 }
 
-/// Ana sayfanın en üstündeki öne çıkan yapım: tam genişlik görsel, zemine geçiş, ad ve iki eylem.
-/// Filmde "İzle" kaynakları, dizide yapım sayfasını açar; "Listem" İzleyeceğim durumunu değiştirir.
-struct HeroBanner: View {
+/// Geniş görsel: verilen yüksekliğe doldurulur ve kırpılır; doğal genişliği yerleşimi büyütmez
+/// (2.1 taşma düzeltmesi: görsel sütunu ekrandan taşırıyordu).
+struct BackdropImage: View {
+    let url: URL?
+    let height: CGFloat
+
+    var body: some View {
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .overlay {
+                RemoteImage(url: url) { image in
+                    image.resizable().aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Theme.surface
+                }
+            }
+            .clipped()
+    }
+}
+
+/// Ana sayfanın en üstündeki öne çıkan yapım: durum çubuğunun altına uzanan görsel, üstte düğmeler,
+/// zemine geçiş, ad ve eylemler. Filmde "İzle" kaynakları, dizide yapım sayfasını açar; "Listem"
+/// İzleyeceğim durumunu değiştirir.
+struct HeroBanner<TopBar: View>: View {
     let ref: MediaRef
+    var topInset: CGFloat = 0
+    @ViewBuilder var topBar: () -> TopBar
     @EnvironmentObject private var store: LibraryStore
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
-        let height: CGFloat = sizeClass == .regular ? 480 : 420
+        let height: CGFloat = (sizeClass == .regular ? 500 : 460) + topInset
         ZStack(alignment: .bottomLeading) {
-            RemoteImage(url: TMDBImage.backdrop(ref.backdropPath)) { image in
-                image.resizable().aspectRatio(contentMode: .fill)
-            } placeholder: {
-                Theme.surface
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .clipped()
+            BackdropImage(url: TMDBImage.backdrop(ref.backdropPath), height: height)
             LinearGradient(
-                stops: [.init(color: .clear, location: 0.35), .init(color: Theme.background.opacity(0.75), location: 0.7), .init(color: Theme.background, location: 1)],
+                stops: [
+                    .init(color: Theme.background.opacity(0.55), location: 0),
+                    .init(color: .clear, location: 0.22),
+                    .init(color: .clear, location: 0.42),
+                    .init(color: Theme.background.opacity(0.8), location: 0.75),
+                    .init(color: Theme.background, location: 1),
+                ],
                 startPoint: .top, endPoint: .bottom
             )
             VStack(alignment: .leading, spacing: 12) {
                 Text(ref.title)
-                    .font(Theme.title(sizeClass == .regular ? 40 : 32))
+                    .font(Theme.title(sizeClass == .regular ? 44 : 34))
                     .tracking(-0.4)
                     .foregroundStyle(Theme.text)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text([ref.type == .tv ? L.typeSeries : L.typeMovie, ref.year.map(String.init)].compactMap { $0 }.joined(separator: " · "))
                     .font(Theme.mono(12))
                     .foregroundStyle(Theme.textSecondary)
@@ -219,6 +243,11 @@ struct HeroBanner: View {
             .padding(.bottom, 8)
         }
         .frame(height: height)
+        .overlay(alignment: .topTrailing) {
+            topBar()
+                .padding(.top, topInset + 6)
+                .padding(.trailing, Theme.gutter)
+        }
     }
 
     /// Birincil: açık renkli dolu hap; ikincil: cam hap (2.0).
@@ -227,7 +256,8 @@ struct HeroBanner: View {
         let label = Label(title, systemImage: icon)
             .font(Theme.body(15).weight(.semibold))
             .lineLimit(1)
-            .padding(.horizontal, 20)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, 18)
             .frame(height: 46)
         if primary {
             label

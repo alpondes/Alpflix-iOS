@@ -25,6 +25,11 @@ takvim, takip, afiş tamamlama).
 numara, İzleyeceklerim, bu ay), `Components/Bento.swift` (`BentoTile`, `TileLabel`, `GlassBorder`, `glassCapsule`: iOS 26'da
 Liquid Glass, öncesinde ince malzeme); iOS 26'da sistemin yüzen cam sekme çubuğu; İstatistikler ve Platformlar kutulu
 (Platformlar'da sayılı bölüm kutuları, `PlatformsRoute(tab:)`).
+2.1: taşma düzeltmesi — geniş görseller `BackdropImage` ile (doğal genişliği yerleşimi büyütmez; `.fill` görsele
+`frame(maxWidth: .infinity)` verme, sütunu ekrandan taşırır). Ana sayfada başlık çubuğu gizli: öne çıkan görsel durum
+çubuğunun altına uzanır, üstte cam takvim/profil düğmeleri (`HomeTopButtons`); görsel yokken tarihli kendi başlığı.
+iOS 26'da gezinme çubuğuna özel görünüm verilmez (başlıklar hiç çizilmiyordu). Simülatör denetimi TMDB anahtarıyla
+derlenir (ekran görüntülerinde gerçek içerik).
 Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)

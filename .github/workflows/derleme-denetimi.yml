@@ -51,6 +51,15 @@ jobs:
           xcodegen generate
           pod install --repo-update
 
+      # Ekran görüntülerinde gerçek içerik (afiş, öne çıkan alan) görünsün diye TMDB anahtarı; yalnız bu derlemede.
+      - name: TMDB anahtarı
+        env:
+          TMDB_API_TOKEN: ${{ secrets.TMDB_API_TOKEN }}
+        run: |
+          if [ -n "$TMDB_API_TOKEN" ]; then
+            printf 'enum BuildSecrets {\n    static let tmdbToken = "%s"\n}\n' "$TMDB_API_TOKEN" > Alpflix/Core/BuildSecrets.swift
+          fi
+
       - name: Simülatör için derle
         run: |
           set -o pipefail
