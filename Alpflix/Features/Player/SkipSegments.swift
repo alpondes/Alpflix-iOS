@@ -24,7 +24,8 @@ struct SkipSegment: Hashable {
     func contains(_ position: Int64, _ duration: Int64) -> Bool { position >= start() && position < end(duration) }
 }
 
-/// TheIntroDB (topluluğun doldurduğu açık veritabanı): giriş, özet, jenerik ve önizleme zamanları.
+/// TheIntroDB (topluluğun doldurduğu açık veritabanı): giriş, özet, jenerik ve önizleme zamanları;
+/// eksik türler introdb.app'ten tamamlanır.
 enum SkipSegments {
     static func url(tmdbId: Int, season: Int?, episode: Int?) -> URL? {
         var text = "https://api.theintrodb.org/v4/media?tmdb_id=\(tmdbId)"
@@ -50,6 +51,40 @@ enum SkipSegments {
             }
         }
         return result
+    }
+
+    /// introdb.app (TheIntroDB'den ayrı, IMDb numarasıyla çalışan ikinci topluluk veritabanı; 2.2).
+    static func introDbURL(imdbId: String, season: Int?, episode: Int?) -> URL? {
+        guard imdbId.hasPrefix("tt") else { return nil }
+        var text = "https://api.introdb.app/segments?imdb_id=\(imdbId)"
+        if let season, let episode, season > 0, episode > 0 {
+            text += "&season=\(season)&episode=\(episode)"
+        } else {
+            text += "&is_movie=true"
+        }
+        return URL(string: text)
+    }
+
+    /// introdb.app cevabı: her tür tek nesne ya da null (`outro` = jenerik). `post_credits` atlanmaz.
+    static func parseIntroDb(_ data: Data) -> [SkipSegment] {
+        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [] }
+        let pairs: [(String, SkipKind)] = [("intro", .intro), ("recap", .recap), ("outro", .credits)]
+        return pairs.compactMap { key, kind in
+            guard let item = root[key] as? [String: Any], let end = number(item["end_ms"]), end > 0 else { return nil }
+            let start = number(item["start_ms"])
+            if let start, end <= start { return nil }
+            return SkipSegment(kind: kind, startMs: start, endMs: end)
+        }
+    }
+
+    /// Her tür için önce TheIntroDB, onda yoksa ikinci kaynak.
+    static func merge(_ primary: [SkipSegment], _ secondary: [SkipSegment]) -> [SkipSegment] {
+        primary + secondary.filter { s in !primary.contains { $0.kind == s.kind } }
+    }
+
+    /// Giriş, özet ya da jenerikten biri eksik mi.
+    static func incomplete(_ segments: [SkipSegment]) -> Bool {
+        [SkipKind.intro, .recap, .credits].contains { kind in !segments.contains { $0.kind == kind } }
     }
 
     static func active(_ segments: [SkipSegment], position: Int64, duration: Int64) -> SkipSegment? {

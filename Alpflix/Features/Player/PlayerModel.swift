@@ -170,6 +170,13 @@ final class PlayerModel: ObservableObject {
            let data = try? await HTTP.data(url, timeout: 10) {
             segments = SkipSegments.parse(data, season: request.season, episode: request.episode)
         }
+        // TheIntroDB'de eksik tür varsa introdb.app (IMDb numarasıyla) boşluğu doldurur.
+        if SkipSegments.incomplete(segments),
+           let url = SkipSegments.introDbURL(imdbId: request.imdbId, season: request.season, episode: request.episode),
+           let data = try? await HTTP.data(url, timeout: 10) {
+            let second = SkipSegments.parseIntroDb(data)
+            if !second.isEmpty, self.request == request { segments = SkipSegments.merge(segments, second) }
+        }
         if let s = request.season, let e = request.episode,
            let detail = try? await TMDBClient.shared.detail(.tv, request.ref.tmdbId) {
             let aired = NextEpisode.aired(seasons: detail.regularSeasons, last: detail.lastEpisodeToAir)

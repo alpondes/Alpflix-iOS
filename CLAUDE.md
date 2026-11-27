@@ -30,11 +30,12 @@ Liquid Glass, öncesinde ince malzeme); iOS 26'da sistemin yüzen cam sekme çub
 çubuğunun altına uzanır, üstte cam takvim/profil düğmeleri (`HomeTopButtons`); görsel yokken tarihli kendi başlığı.
 iOS 26'da gezinme çubuğuna özel görünüm verilmez (başlıklar hiç çizilmiyordu). Simülatör denetimi TMDB anahtarıyla
 derlenir (ekran görüntülerinde gerçek içerik).
+2.1.1 (Android 7.0.1 ile aynı): atlama zamanlarında TheIntroDB'de eksik tür introdb.app'ten (IMDb) tamamlanır.
 Hesap ve sunucu yok; veri cihazda tek JSON (`LibraryStore`).
 
 ## Kurallar (Android ile aynı)
 - Puanlama yok. Yapay zekâ özelliği yok. Analitik/reklam yok. Trakt yok. Doğrudan debrid API yok.
-  Kaçak sitelerden kazıma yok. Uygulama içinde torrent motoru yok (torrent kaynakları gösterilir, oynatılmaz).
+  Kazıma yasağı kullanıcı kararıyla kaldırıldı (2.2; yöntem kullanıcıyla birlikte seçilir). Uygulama içinde torrent motoru yok (torrent kaynakları gösterilir, oynatılmaz).
 - Gizli değerler depoya girmez: TMDB anahtarı GitHub secret'ından (TMDB_API_TOKEN) derlemede
   `Alpflix/Core/BuildSecrets.swift`'e yazılır (depoda boş) ya da uygulamada Ayarlar'dan girilir.
   Eklenti adresleri arayüzde maskelenir (`maskedUrl`), hata metnine ve log'a yazılmaz.
